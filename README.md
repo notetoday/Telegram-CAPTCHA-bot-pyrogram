@@ -46,8 +46,8 @@ Telegram Bot API 使用了基于 MTProto 框架的 pyrogram，多线程使用了
 3. 在服务器上安装 pyrogram 以及 tgcrypto（以 Ubuntu 18.04 LTS 为例）: 
 ```
 # 若未安装pip3，请先安装 python3-pip
-apt install python3-pip
-pip3 install -U tgcrypto pyrogram configparser
+apt update && apt install -y python3-pip
+pip3 install -U setuptools tgcrypto pyrogram configparser
 # 项目当前已适配并兼容最新的 pyrogram v1.1.3（自带 asyncio 支持），直接通过 Pypi 安装即可。
 git clone https://github.com/Tooruchan/Telegram-CAPTCHA-bot 
 cd Telegram-CAPTCHA-bot
@@ -57,9 +57,9 @@ cd Telegram-CAPTCHA-bot
 
 有关填写字段说明:
 
-`channel`: Bot 日志记录频道，未填写将会导致无法正常工作（这是一个 bug，等待修复）。
+`channel`: Bot 日志记录频道 Chat ID (-100 开头)，未填写将会导致无法正常工作（这是一个 bug，等待修复）。
 
-`admin`: 管理用户，不填写则`/leave`和`/reload`指令无效。
+`admin`: 管理用户 User ID，不填写则`/leave`和`/reload`指令无效。
 
 5. 使用 `python3 main.py` 直接运行这个 bot,或者在 `/etc/systemd/system/ `下新建一个 .service 文件，使用 systemd 控制这个bot的运行，配置文件示例请参考本项目目录下的 `example.service` 文件进行修改。
 
