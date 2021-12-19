@@ -6,7 +6,7 @@
   "msg_passed_mercy": "#PASS_WRONG_ANSWER\nOPBot: `{botid}`\n用户 ID: `{targetuser}` \n事件: 回答错误，通过验证.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
   "msg_passed_admin": "#PASS_MANUALLY\nOPBot: `{botid}`\n用户 ID: `{targetuser}` \n事件: 管理员人工通过验证.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
   "msg_failed_answer": "#FAIL_WRONG_ANSWER\nOPBot: `{botid}`\n用户 ID: `{targetuser}` \n事件: 验证未能通过.\n原因: 回答错误\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
-  "msg_failed_timeout": "#FAIL_TLO\nOPBot: `{botid}`\n用户 ID: `{targetuser}` \n事件: 验证未能通过.\n原因: 超时.\n群组 ID: `{groupid}`",
+  "msg_failed_timeout": "#FAIL_TLO\nOPBot: `{botid}`\n用户 ID: `{targetuserid}` \n用户名: `{targetusername}` \n用户 Firstname: `{targetfirstname}` \n用户 Lastname: `{targetlastname}` \n事件: 验证未能通过.\n原因: 超时.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}` ",
   "msg_failed_admin": "#FAIL_MANUALLY\nOPBot: `{botid}`\n用户 ID: `{targetuser}` \n事件:验证未能通过 \n原因: 管理员人工拒绝.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
   "msg_into_group": "#ADDBOT\nOPBot: `{botid}`\n已被加入群组 ID: `{groupid}`\n群组标题: `{grouptitle}` 中",
   "msg_leave_group": "基于Term of Service, OPBot: `{botid}` \n离开了群组: `{groupid}`",
