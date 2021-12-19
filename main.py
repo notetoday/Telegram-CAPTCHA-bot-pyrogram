@@ -8,7 +8,7 @@ from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified
-from pyrogram.types import (InlineKeyboardMarkup, InlineKeyboardButton, User, Message, ChatPermissions, CallbackQuery)
+from pyrogram.types import (InlineKeyboardMarkup, InlineKeyboardButton, User, Message, ChatPermissions, CallbackQuery, ChatMemberUpdated)
 
 from Timer import Timer
 from challenge import Challenge
@@ -104,9 +104,12 @@ def _update(app):
         else:
             pass
 
-    @app.on_message(filters.new_chat_members)
-    async def challenge_user(client: Client, message: Message):
-        target = message.new_chat_members[0]
+    @app.on_chat_member_updated()
+    async def challenge_user(client: Client, message: ChatMemberUpdated):
+        # filter out chat member left message
+        if not bool(message.new_chat_member):
+            return
+        target = message.new_chat_member.user
         group_config = _config.get(str(message.chat.id), _config["*"])
         if group_config["global_timeout_user_kick"]:
             chat_id = message.chat.id
@@ -173,7 +176,7 @@ def _update(app):
                                                  target_id=target.id,
                                                  timeout=timeout,
                                                  challenge=challenge.qus()),
-            reply_to_message_id=message.message_id,
+            # reply_to_message_id=message.message_id,
             reply_markup=InlineKeyboardMarkup(
                 generate_challenge_button(challenge)),
         )
