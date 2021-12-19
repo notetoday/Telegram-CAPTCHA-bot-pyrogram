@@ -106,7 +106,7 @@ def _update(app):
 
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
-        target = message.new_chat_members
+        target = message.new_chat_member.user
         group_config = _config.get(str(message.chat.id), _config["*"])
         if group_config["global_timeout_user_kick"]:
             chat_id = message.chat.id
