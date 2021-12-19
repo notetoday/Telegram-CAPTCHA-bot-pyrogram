@@ -107,8 +107,8 @@ def _update(app):
 
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
-        # filter out chat member left message
-        if not bool(message.new_chat_member):
+        # Only listen on new user enter
+        if not bool(message.new_chat_member) or bool(message.old_chat_member):
             return
         target = message.new_chat_member.user
         group_config = _config.get(str(message.chat.id), _config["*"])
