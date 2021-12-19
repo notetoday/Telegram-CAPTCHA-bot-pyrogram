@@ -96,7 +96,6 @@ def _update(app):
                     await client.send_message(
                         int(_channel),
                         _config["msg_leave_group"].format(
-                            botid=str(_me.id),
                             groupid=chat_id,
                         ),
                         parse_mode="Markdown")
@@ -135,7 +134,6 @@ def _update(app):
                         await client.send_message(
                             int(_channel),
                             _config["msg_into_group"].format(
-                                botid=str(_me.id),
                                 groupid=str(message.chat.id),
                                 grouptitle=str(message.chat.title),
                             ),
@@ -178,13 +176,11 @@ def _update(app):
                                                  target_id=target.id,
                                                  timeout=timeout,
                                                  challenge=challenge.qus()),
-            # reply_to_message_id=message.message_id,
             reply_markup=InlineKeyboardMarkup(
                 generate_challenge_button(challenge)),
         )
         _me: User = await client.get_me()
         timeout_event = Timer(
-            #            challenge_timeout(client, message.chat.id, message.from_user.id, reply_message.message_id),
             challenge_timeout(client, message, reply_message.message_id),
             timeout=group_config["challenge_timeout"],
         )
@@ -264,7 +260,6 @@ def _update(app):
                     await client.send_message(
                         int(_channel),
                         _config["msg_passed_admin"].format(
-                            botid=str(_me.id),
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
@@ -291,7 +286,6 @@ def _update(app):
                     await client.send_message(
                         int(_channel),
                         _config["msg_failed_admin"].format(
-                            botid=str(_me.id),
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
@@ -348,7 +342,6 @@ def _update(app):
                 await client.send_message(
                     int(_channel),
                     _config["msg_passed_answer"].format(
-                        botid=str(_me.id),
                         targetuserid=str(target_id),
                         groupid=str(chat_id),
                         grouptitle=str(chat_title),
@@ -370,7 +363,6 @@ def _update(app):
                     await client.send_message(
                         int(_channel),
                         _config["msg_passed_mercy"].format(
-                            botid=str(_me.id),
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
@@ -393,7 +385,6 @@ def _update(app):
                         await client.send_message(
                             int(_channel),
                             _config["msg_failed_answer"].format(
-                                botid=str(_me.id),
                                 targetuserid=str(target_id),
                                 groupid=str(chat_id),
                                 grouptitle=str(chat_title),
@@ -456,7 +447,6 @@ def _update(app):
 
         await client.send_message(chat_id=_channel,
                                   text=_config["msg_failed_timeout"].format(
-                                      botid=str(_me.id),
                                       targetuserid=str(from_id),
                                       targetusername=str(user_username),
                                       targetfirstname=str(user_first_name),
