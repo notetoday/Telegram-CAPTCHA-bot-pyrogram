@@ -7,7 +7,7 @@
   "msg_passed_admin": "#PASS_MANUALLY\n用户 ID: `{targetuserid}` \n事件: 管理员人工通过验证.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
   "msg_failed_answer": "#FAIL_WRONG_ANSWER\n用户 ID: `{targetuserid}` \n事件: 验证未能通过.\n原因: 回答错误\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
   "msg_failed_timeout": "#FAIL_TLO\n用户 ID: `{targetuserid}` \n用户名: @{targetusername} \n用户 Firstname: `{targetfirstname}` \n用户 Lastname: `{targetlastname}` \n事件: 验证未能通过.\n原因: 超时.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}` ",
-  "msg_failed_admin": "#FAIL_MANUALLY\nn用户 ID: `{targetuserid}` \n事件:验证未能通过 \n原因: 管理员人工拒绝.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
+  "msg_failed_admin": "#FAIL_MANUALLY\n用户 ID: `{targetuserid}` \n事件:验证未能通过 \n原因: 管理员人工拒绝.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}`",
   "msg_failed_auto_kick": "#AUTO_KICKED\n用户 ID: `{targetuserid}` \n用户名: @{targetusername} \n用户 Firstname: `{targetfirstname}` \n用户 Lastname: `{targetlastname}` \n事件: 验证未能通过.\n原因: 黑名单自动踢出.\n群组 ID: `{groupid}`\n群组标题: `{grouptitle}` ",
   "msg_into_group": "#ADDBOT\n已被加入群组 ID: `{groupid}`\n群组标题: `{grouptitle}` 中",
   "msg_leave_group": "基于Term of Service, Bot 离开了群组: `{groupid}`",

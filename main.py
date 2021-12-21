@@ -46,8 +46,8 @@ def load_config():
 
 
 def save_config():
-    with open("config.json", "w") as f:
-        json.dump(_config, f, indent=4)
+    with open("config.json", "w", encoding='utf8') as f:
+        json.dump(_config, f, indent=4, ensure_ascii=False)
 
 
 def _update(app):
@@ -67,7 +67,7 @@ def _update(app):
     async def helping_cmd(client: Client, message: Message):
         _me: User = await client.get_me()
         logging.info(message.text)
-        await message.reply(_config["*"]["msg_self_introduction"],
+        await message.reply(_config["msg_self_introduction"],
                             disable_web_page_preview=True)
 
     @app.on_message(filters.command("ping") & filters.private)
