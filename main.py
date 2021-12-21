@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import time
+import datetime
 from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
@@ -115,12 +116,13 @@ def _update(app):
             chat_id = message.chat.id
             current_time = int(time.time())
             last_try = db.get_last_try(target.id)
-            if db.get_user_status(target.id) == 1 and (current_time - last_try) > group_config[
-                "global_timeout_user_blacklist_remove"]:
+            since_last_attempt = current_time - last_try
+            if db.get_user_status(target.id) == 1 and since_last_attempt > group_config["global_timeout_user_blacklist_remove"]:
                 await client.kick_chat_member(chat_id, target.id)
                 await client.unban_chat_member(chat_id, target.id)
                 db.update_last_try(current_time, target.id)
                 db.try_count_plus_one(target.id)
+                try_count = int(db.get_try_count(target.id))
                 try:
                     await client.send_message(_channel,
                                               text=_config["msg_failed_auto_kick"].format(
@@ -129,7 +131,10 @@ def _update(app):
                                                   targetfirstname=str(target.first_name),
                                                   targetlastname=str(target.last_name),
                                                   groupid=str(chat_id),
-                                                  grouptitle=str(message.chat.title)
+                                                  grouptitle=str(message.chat.title),
+                                                  lastattempt=str(time.strftime('%Y-%m-%d %H:%M %Z', time.gmtime(last_try))),
+                                                  sincelastattempt=str(datetime.timedelta(seconds=since_last_attempt)),
+                                                  trycount=str(try_count)
                                               ))
                 except Exception as e:
                     logging.error(str(e))

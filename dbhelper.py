@@ -104,17 +104,3 @@ class DBHelper:
             return None
         else:
             return result[0]
-
-    def get_last_try_time(self, user_id):
-        stmt = "SELECT last_try FROM user WHERE user_id == (?)"
-        cur = self.conn.cursor()
-        try:
-            cur.execute(stmt, (user_id,))
-            result = cur.fetchone()
-        except sqlite3.Error as e:
-            logging.error(str(e))
-            return None
-        if result is None:
-            return None
-        else:
-            return result[0]
