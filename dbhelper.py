@@ -29,7 +29,7 @@ class DBHelper:
             logging.error(str(e))
             return None
         if result is None:
-            return None
+            return 0
         else:
             return result[0]
 
@@ -43,7 +43,7 @@ class DBHelper:
             logging.error(str(e))
             return None
         if result is None:
-            return None
+            return 0
         else:
             return result[0]
 
@@ -101,6 +101,6 @@ class DBHelper:
             logging.error(str(e))
             return None
         if result is None:
-            return None
+            return 0
         else:
             return result[0]
