@@ -121,6 +121,18 @@ def _update(app):
                 await client.unban_chat_member(chat_id, target.id)
                 db.update_last_try(current_time, target.id)
                 db.try_count_plus_one(target.id)
+                try:
+                    await client.send_message(_channel,
+                                              text=_config["msg_failed_auto_kick"].format(
+                                                  targetuserid=str(target.id),
+                                                  targetusername=str(target.username),
+                                                  targetfirstname=str(target.first_name),
+                                                  targetlastname=str(target.last_name),
+                                                  groupid=str(chat_id),
+                                                  grouptitle=str(message.chat.title)
+                                              ))
+                except Exception as e:
+                    logging.error(str(e))
                 return
             else:
                 db.whitelist(target.id)
