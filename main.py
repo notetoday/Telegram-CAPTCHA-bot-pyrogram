@@ -110,6 +110,8 @@ def _update(app):
         # Only listen on new user enter
         if not bool(message.new_chat_member) or bool(message.old_chat_member) or message.chat.type == "channel":
             return
+        if message.from_user.id != message.new_chat_member.user.id:
+            return
         target = message.new_chat_member.user
         group_config = _config.get(str(message.chat.id), _config["*"])
         if group_config["global_timeout_user_kick"]:
