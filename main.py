@@ -61,7 +61,7 @@ def _update(app):
             load_config()
             await message.reply("配置已成功重载。")
         else:
-            logging.info("Permission denied, admin user in config is:" + _admin_user)
+            logging.info("Permission denied, admin user in config is:" + str(_admin_user))
             pass
 
     @app.on_message(filters.command("help") & filters.group)
@@ -107,21 +107,25 @@ def _update(app):
 
     @app.on_message(filters.command("clean") & filters.private)
     async def clean_database(client: Client, message: Message):
-        failed_count = success_count = 0
-        deleted_user = []
-        user_id_list = db.get_all_user_ids()
-        for x in user_id_list:
-            try:
-                user = await client.get_users(x)
-            except BadRequest:
-                failed_count += 1
-                continue
-            if user.is_deleted:
-                deleted_user.append((user.id,))
-                # 因为 db 用的是 executemany ，得传一个 tuple 进去，所以必须得这么写，不知道有没有更好的方法
-                success_count += 1
-        db.delete_user(deleted_user)
-        await message.reply("已成功清除{}个用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
+        if message.from_user.id == _admin_user:
+            failed_count = success_count = 0
+            deleted_user = []
+            user_id_list = db.get_all_user_ids()
+            for x in user_id_list:
+                try:
+                    user = await client.get_users(x)
+                except BadRequest:
+                    failed_count += 1
+                    continue
+                if user.is_deleted:
+                    deleted_user.append((user.id,))
+                    # 因为 db 用的是 executemany ，得传一个 tuple 进去，所以必须得这么写，不知道有没有更好的方法
+                    success_count += 1
+            db.delete_user(deleted_user)
+            await message.reply("已成功清除{}个用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
+        else:
+            logging.info("Permission denied, admin user in config is:" + str(_admin_user))
+            return
 
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
