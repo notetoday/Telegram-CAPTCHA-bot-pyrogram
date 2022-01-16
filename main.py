@@ -8,7 +8,7 @@ import datetime
 from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
-from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified
+from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
 from pyrogram.types import (InlineKeyboardMarkup, InlineKeyboardButton, User, Message, ChatPermissions, CallbackQuery,
                             ChatMemberUpdated)
 
@@ -87,7 +87,7 @@ def _update(app):
                 await client.send_message(int(chat_id),
                                           _config["msg_leave_msg"])
                 await client.leave_chat(int(chat_id), True)
-            except:
+            except RPCError:
                 await message.reply("指令出错了！可能是bot不在参数所在群里。")
             else:
                 await message.reply("已离开群组: `" + chat_id + "`",
@@ -105,11 +105,30 @@ def _update(app):
         else:
             pass
 
+    @app.on_message(filters.command("clean") & filters.private)
+    async def clean_database(client: Client, message: Message):
+        failed_count = success_count = 0
+        deleted_user = []
+        user_id_list = db.get_all_user_ids()
+        for x in user_id_list:
+            try:
+                user = await client.get_users(x)
+            except BadRequest:
+                failed_count += 1
+                continue
+            if user.is_deleted:
+                deleted_user.append((user.id,))
+                # 因为 db 用的是 executemany ，得传一个 tuple 进去，所以必须得这么写，不知道有没有更好的方法
+                success_count += 1
+        db.delete_user(deleted_user)
+        await message.reply("已成功清除{}个用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
+
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
-        # Only listen on new user enter
+        # 过滤掉非用户加群消息和频道新用户消息，同时确保 form_user 这个参数不是空的
         if not bool(message.new_chat_member) or bool(message.old_chat_member) or message.chat.type == "channel":
             return
+        # 过滤掉管理员 ban 掉用户产生的加群消息 (Durov 这什么 jb api 赶紧分遗产了)
         if message.from_user.id != message.new_chat_member.user.id:
             return
         target = message.new_chat_member.user
@@ -119,7 +138,8 @@ def _update(app):
             current_time = int(time.time())
             last_try = db.get_last_try(target.id)
             since_last_attempt = current_time - last_try
-            if db.get_user_status(target.id) == 1 and since_last_attempt > group_config["global_timeout_user_blacklist_remove"]:
+            if db.get_user_status(target.id) == 1 and since_last_attempt > group_config[
+                "global_timeout_user_blacklist_remove"]:
                 await client.kick_chat_member(chat_id, target.id)
                 await client.unban_chat_member(chat_id, target.id)
                 db.update_last_try(current_time, target.id)
@@ -134,7 +154,8 @@ def _update(app):
                                                   targetlastname=str(target.last_name),
                                                   groupid=str(chat_id),
                                                   grouptitle=str(message.chat.title),
-                                                  lastattempt=str(time.strftime('%Y-%m-%d %H:%M %Z', time.gmtime(last_try))),
+                                                  lastattempt=str(
+                                                      time.strftime('%Y-%m-%d %H:%M %Z', time.gmtime(last_try))),
                                                   sincelastattempt=str(datetime.timedelta(seconds=since_last_attempt)),
                                                   trycount=str(try_count)
                                               ))
@@ -489,11 +510,8 @@ def _update(app):
             )
 
         if group_config["global_timeout_user_kick"]:
-            try:
-                current_time = int(time.time())
-                db.new_blacklist(current_time, from_id)
-            except:
-                print("Write to database failed")
+            current_time = int(time.time())
+            db.new_blacklist(current_time, from_id)
 
 
 def _main():

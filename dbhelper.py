@@ -12,7 +12,7 @@ class DBHelper:
        (user_id int PRIMARY KEY     NOT NULL,
         last_try int default 0,
         blacklist  int  default 1 NOT NULL,
-        try_count int default 0);''')
+        try_count int default 1);''')
         try:
             self.conn.execute(stmt)
             self.conn.commit()
@@ -104,3 +104,27 @@ class DBHelper:
             return 0
         else:
             return result[0]
+
+    def get_all_user_ids(self):
+        stmt = "SELECT user_id FROM user"
+        cur = self.conn.cursor()
+        try:
+            cur.execute(stmt)
+            result = [i[0] for i in cur.fetchall()]
+            # cur.fetchall() 是返回一个 tuples，只能用这个方法了转成 list 处理了，如果有更好的方法麻烦告诉我
+        except sqlite3.Error as e:
+            logging.error(str(e))
+            return None
+        if result is None:
+            return 0
+        else:
+            return result
+
+    def delete_user(self, user_id):
+        stmt = "DELETE FROM user WHERE user_id = (?)"
+        args = user_id
+        try:
+            self.conn.executemany(stmt, args)
+            self.conn.commit()
+        except sqlite3.Error as e:
+            logging.error(str(e))
