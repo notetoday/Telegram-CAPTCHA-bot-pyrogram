@@ -111,6 +111,8 @@ def _update(app):
             failed_count = success_count = 0
             deleted_user = []
             user_id_list = db.get_all_user_ids()
+            estimated_time = datetime.timedelta(seconds=int(len(user_id_list) / 4))
+            await message.reply("开始整理数据库，请稍等...\n预计需要时间:{}".format(estimated_time))
             for x in user_id_list:
                 try:
                     user = await client.get_users(x)
@@ -122,7 +124,7 @@ def _update(app):
                     # 因为 db 用的是 executemany ，得传一个 tuple 进去，所以必须得这么写，不知道有没有更好的方法
                     success_count += 1
             db.delete_user(deleted_user)
-            await message.reply("已成功清除{}个用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
+            await message.reply("已成功清除{}个已经删号的用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
         else:
             logging.info("Permission denied, admin user in config is:" + str(_admin_user))
             return
