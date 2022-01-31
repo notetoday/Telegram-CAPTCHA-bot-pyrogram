@@ -146,7 +146,7 @@ def _update(app):
             since_last_attempt = current_time - last_try
             if db.get_user_status(target.id) == 1 and since_last_attempt > group_config[
                 "global_timeout_user_blacklist_remove"]:
-                await client.kick_chat_member(chat_id, target.id)
+                await client.ban_chat_member(chat_id, target.id)
                 await client.unban_chat_member(chat_id, target.id)
                 db.update_last_try(current_time, target.id)
                 db.try_count_plus_one(target.id)
@@ -281,12 +281,9 @@ def _update(app):
                         permissions=ChatPermissions(
                             can_send_messages=True,
                             can_send_media_messages=True,
-                            can_send_stickers=True,
-                            can_send_animations=True,
-                            can_send_games=True,
-                            can_use_inline_bots=True,
-                            can_add_web_page_previews=True,
+                            can_send_other_messages=True,
                             can_send_polls=True,
+                            can_add_web_page_previews=True,
                             can_change_info=True,
                             can_invite_users=True,
                             can_pin_messages=True))
@@ -316,7 +313,7 @@ def _update(app):
                     logging.error(str(e))
             else:
                 try:
-                    await client.kick_chat_member(chat_id, target_id)
+                    await client.ban_chat_member(chat_id, target_id)
                 except ChatAdminRequired:
                     await client.answer_callback_query(
                         query_id, group_config["msg_bot_no_permission"])
@@ -360,12 +357,9 @@ def _update(app):
                 permissions=ChatPermissions(
                     can_send_messages=True,
                     can_send_media_messages=True,
-                    can_send_stickers=True,
-                    can_send_animations=True,
-                    can_send_games=True,
-                    can_use_inline_bots=True,
-                    can_add_web_page_previews=True,
+                    can_send_other_messages=True,
                     can_send_polls=True,
+                    can_add_web_page_previews=True,
                     can_change_info=True,
                     can_invite_users=True,
                     can_pin_messages=True))
@@ -443,9 +437,9 @@ def _update(app):
                     return
 
                 if group_config["challenge_timeout_action"] == "ban":
-                    await client.kick_chat_member(chat_id, user_id)
+                    await client.ban_chat_member(chat_id, user_id)
                 elif group_config["challenge_timeout_action"] == "kick":
-                    await client.kick_chat_member(chat_id, user_id)
+                    await client.ban_chat_member(chat_id, user_id)
                     await client.unban_chat_member(chat_id, user_id)
                 elif group_config["challenge_timeout_action"] == "mute":
                     await client.restrict_chat_member(
@@ -502,9 +496,9 @@ def _update(app):
                                   ))
 
         if group_config["challenge_timeout_action"] == "ban":
-            await client.kick_chat_member(chat_id, from_id)
+            await client.ban_chat_member(chat_id, from_id)
         elif group_config["challenge_timeout_action"] == "kick":
-            await client.kick_chat_member(chat_id, from_id)
+            await client.ban_chat_member(chat_id, from_id)
             await client.unban_chat_member(chat_id, from_id)
         else:
             pass
