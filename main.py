@@ -139,7 +139,7 @@ def _update(app):
     async def add_regex(client: Client, message: Message):
         group_config = _config.get(str(message.chat.id), _config["*"])
         chat_id = message.chat.id
-        if message.from_user.id is None:
+        if message.from_user is None:
             await message.reply("请从个人账号发送指令。")
             return
         user_id = message.from_user.id
@@ -181,7 +181,7 @@ def _update(app):
     @app.on_message(filters.command("regexdel") & filters.group)
     async def del_regex(client: Client, message: Message):
         chat_id = message.chat.id
-        if message.from_user.id is None:
+        if message.from_user is None:
             await message.reply("请从个人账号发送指令。")
             return
         user_id = message.from_user.id
@@ -213,7 +213,7 @@ def _update(app):
     @app.on_message(filters.command("regexlist") & filters.group)
     async def del_regex(client: Client, message: Message):
         chat_id = message.chat.id
-        if message.from_user.id is None:
+        if message.from_user is None:
             await message.reply("请从个人账号发送指令。")
             return
         user_id = message.from_user.id
