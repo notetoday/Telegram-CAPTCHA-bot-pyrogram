@@ -53,6 +53,11 @@ def save_config():
 
 
 def _update(app):
+    @app.on_message(filters.edited)
+    async def edited( client, message):
+        pass
+    # avoid event handler called twice or more by edit
+
     @app.on_message(filters.command("reload") & filters.private)
     async def reload_cfg(client: Client, message: Message):
         _me: User = await client.get_me()
@@ -134,6 +139,9 @@ def _update(app):
     async def add_regex(client: Client, message: Message):
         group_config = _config.get(str(message.chat.id), _config["*"])
         chat_id = message.chat.id
+        if message.from_user.id is None:
+            await message.reply("请从个人账号发送指令。")
+            return
         user_id = message.from_user.id
         admins = await client.get_chat_members(chat_id, filter="administrators")
         help_message = "使用方法:\n /regexadd [规则描述] [动作] [匹配类型] [正则表达式]" \
@@ -173,6 +181,9 @@ def _update(app):
     @app.on_message(filters.command("regexdel") & filters.group)
     async def del_regex(client: Client, message: Message):
         chat_id = message.chat.id
+        if message.from_user.id is None:
+            await message.reply("请从个人账号发送指令。")
+            return
         user_id = message.from_user.id
         group_config = _config.get(str(chat_id), _config["*"])
         admins = await client.get_chat_members(chat_id, filter="administrators")
@@ -202,6 +213,9 @@ def _update(app):
     @app.on_message(filters.command("regexlist") & filters.group)
     async def del_regex(client: Client, message: Message):
         chat_id = message.chat.id
+        if message.from_user.id is None:
+            await message.reply("请从个人账号发送指令。")
+            return
         user_id = message.from_user.id
         group_config = _config.get(str(chat_id), _config["*"])
         admins = await client.get_chat_members(chat_id, filter="administrators")
@@ -222,7 +236,7 @@ def _update(app):
             match = regex_rule[3]
             action = regex_rule[4]
             description = regex_rule[5]
-            regex_list += "ID: {rid}" \
+            regex_list += "ID: `{rid}`" \
                           "\n正则表达式: `{regex}`" \
                           "\n匹配: `{match}`" \
                           "\n动作: `{action}`" \
