@@ -25,7 +25,7 @@
     "msg_bot_no_permission": "操作失败，可能是群管并未赋予机器人管理员权限。",
     "msg_approved": "您已被管理员 {user} 人工通过，欢迎加入本群！",
     "msg_refused": "该用户已被管理员 {user} 移除出群。",
-    "challenge_timeout": 30,
+    "challenge_timeout": 60,
     "challenge_timeout_action": "kick",
     "delete_passed_challenge": true,
     "delete_passed_challenge_interval": 60,

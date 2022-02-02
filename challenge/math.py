@@ -1,4 +1,7 @@
+import json
 import random
+
+from pyrogram.types import (InlineKeyboardButton, Message)
 
 
 class Challenge:
@@ -29,6 +32,7 @@ class Challenge:
     
     qus, ans,choices 这三个函数可以放着不动
     """
+
     def __init__(self):
         self._a = 0
         self._b = 0
@@ -66,6 +70,22 @@ class Challenge:
         self._op = operation
         self._ans = ans
         self._choices = choices
+
+    def generate_button(self, group_config):
+        choices = []
+        answers = []
+        for c in self.choices():
+            answers.append(
+                InlineKeyboardButton(str(c),
+                                     callback_data=bytes(
+                                         str(c), encoding="utf-8")))
+        choices.append(answers)
+        return choices + [[
+            InlineKeyboardButton(group_config["msg_approve_manually"],
+                                 callback_data=b"+"),
+            InlineKeyboardButton(group_config["msg_refuse_manually"],
+                                 callback_data=b"-"),
+        ]]
 
     def qus(self):
         return self.__str__()

@@ -10,17 +10,17 @@ from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
-from pyrogram.types import (InlineKeyboardMarkup, InlineKeyboardButton, User, Message, ChatPermissions, CallbackQuery,
+from pyrogram.types import (InlineKeyboardMarkup, User, Message, ChatPermissions, CallbackQuery,
                             ChatMemberUpdated)
 
 from Timer import Timer
-from challenge import Challenge
+from challenge.math import Challenge
 
 from dbhelper import DBHelper
 
 db = DBHelper()
 
-_app: Client = None
+_start_message = "YABE!"
 # _challenge_scheduler = sched.scheduler(time, sleep)
 _current_challenges = dict()
 _cch_lock = threading.Lock()
@@ -145,12 +145,13 @@ def _update(app):
         user_id = message.from_user.id
         admins = await client.get_chat_members(chat_id, filter="administrators")
         help_message = "使用方法:\n /regexadd [规则描述] [动作] [匹配类型] [正则表达式]" \
-                       "\n参数使用空格分开\n规则描述: 对于这条规则的简短描述" \
-                       "\n动作: 匹配到规则后的动作，值为 `ban` 永久封禁或 `kick` 踢出" \
-                       "\n匹配类型: 值为 `username` 用户名或 `name` 用户名字" \
-                       "\n正则表达式: Perl 正则表达式" \
-                       "\n例如:\n /regexadd 封禁恶意用户 ban username ^[a-zA-Z0-9_]{5,20}$" \
-                       "\n(这例子不是我写的，这是 Github Copilot 自动写的，我压根就不会写正则) "
+                       "\n\n参数使用空格分开\n规则描述: 对于这条规则的简短描述" \
+                       "\n\n动作: 匹配到规则后的动作，值为 `ban` 永久封禁或 `kick` 踢出" \
+                       "\n\n匹配类型: 值为 `username` 用户名或 `name` 用户名字" \
+                       "\n\n正则表达式: Perl 正则表达式" \
+                       "\n例如:" \
+                       "\n /regexadd 封禁恶意用户 ban username ^[a-zA-Z0-9_]{5,20}$" \
+                       "\n\n(这例子是 Github Copilot 自动写的，我压根就不会写正则) "
 
         if not any([
             admin.user.id == user_id and
@@ -369,22 +370,6 @@ def _update(app):
             return
         challenge = Challenge()
 
-        def generate_challenge_button(e):
-            choices = []
-            answers = []
-            for c in e.choices():
-                answers.append(
-                    InlineKeyboardButton(str(c),
-                                         callback_data=bytes(
-                                             str(c), encoding="utf-8")))
-            choices.append(answers)
-            return choices + [[
-                InlineKeyboardButton(group_config["msg_approve_manually"],
-                                     callback_data=b"+"),
-                InlineKeyboardButton(group_config["msg_refuse_manually"],
-                                     callback_data=b"-"),
-            ]]
-
         timeout = group_config["challenge_timeout"]
         reply_message = await client.send_message(
             message.chat.id,
@@ -393,7 +378,7 @@ def _update(app):
                                                  timeout=timeout,
                                                  challenge=challenge.qus()),
             reply_markup=InlineKeyboardMarkup(
-                generate_challenge_button(challenge)),
+                challenge.generate_button(group_config)),
         )
         _me: User = await client.get_me()
         timeout_event = Timer(
@@ -420,6 +405,20 @@ def _update(app):
         user_first_name = callback_query.from_user.first_name
         user_last_name = callback_query.from_user.last_name
         group_config = _config.get(str(chat_id), _config["*"])
+
+        # 获取验证信息-----------------------------------------------------------------------------------------------
+
+        ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
+        _cch_lock.acquire()
+        # target: int = None
+        challenge, target_id, timeout_event = _current_challenges.get(ch_id)
+        _cch_lock.release()
+        if not challenge or not target_id or not timeout_event:
+            logging.error("challenge not found, challenge_id: {}".format(ch_id))
+            return
+
+        # 响应管理员操作------------------------------------------------------------------------------------------------
+
         if query_data in ["+", "-"]:
             admins = await client.get_chat_members(chat_id,
                                                    filter="administrators")
@@ -431,17 +430,9 @@ def _update(app):
                 await client.answer_callback_query(
                     query_id, group_config["msg_permission_denied"])
                 return
-
-            ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
-            _cch_lock.acquire()
-            # target: int = None
-            timeout_event: None
-            challenge, target_id, timeout_event = _current_challenges.get(
-                ch_id, (None, None, None))
             if ch_id in _current_challenges:
                 # 预防异常
                 del _current_challenges[ch_id]
-            _cch_lock.release()
             timeout_event.stop()
             if query_data == "+":
                 try:
@@ -510,16 +501,16 @@ def _update(app):
             await client.answer_callback_query(query_id)
             return
 
-        ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
-        _cch_lock.acquire()
-        challenge, target_id, timeout_event = _current_challenges.get(
-            ch_id, (None, None, None))
-        _cch_lock.release()
+        # 让捣蛋的一边玩去 ---------------------------------------------------------------------------------
+
         if user_id != target_id:
             await client.answer_callback_query(
                 query_id, group_config["msg_challenge_not_for_you"])
             return None
         timeout_event.stop()
+
+        # 分析的没错的话这里应该是先给用户解开再根据回答对错处理 -----------------------------------------------------------
+
         try:
             await client.restrict_chat_member(
                 chat_id,
@@ -686,7 +677,7 @@ def _update(app):
 
 def _main():
     db.setup()
-    global _app, _channel, _start_message, _config
+    global _channel, _start_message, _config
     load_config()
     _start_message = _config["msg_start_message"]
     _proxy_ip = _config["proxy_addr"].strip()
