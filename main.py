@@ -669,7 +669,7 @@ def _update(app):
 
         if group_config["delete_failed_challenge"]:
             Timer(
-                await client.delete_messages(chat_id, reply_id),
+                client.delete_messages(chat_id, reply_id),
                 group_config["delete_failed_challenge_interval"],
             )
 
