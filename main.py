@@ -409,13 +409,16 @@ def _update(app):
         # 获取验证信息-----------------------------------------------------------------------------------------------
 
         ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
+
         _cch_lock.acquire()
-        # target: int = None
-        challenge, target_id, timeout_event = _current_challenges.get(ch_id)
+        challenge_data = _current_challenges.get(ch_id)
         _cch_lock.release()
-        if not challenge or not target_id or not timeout_event:
+
+        if challenge_data is None:
             logging.error("challenge not found, challenge_id: {}".format(ch_id))
             return
+        else:
+            challenge, target_id, timeout_event = challenge_data
 
         # 响应管理员操作------------------------------------------------------------------------------------------------
 
@@ -666,7 +669,7 @@ def _update(app):
 
         if group_config["delete_failed_challenge"]:
             Timer(
-                client.delete_messages(chat_id, reply_id),
+                await client.delete_messages(chat_id, reply_id),
                 group_config["delete_failed_challenge_interval"],
             )
 
