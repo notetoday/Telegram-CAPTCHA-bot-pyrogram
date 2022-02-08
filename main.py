@@ -29,7 +29,7 @@ _config = dict()
 读 只 读 配 置
 '''
 cf = ConfigParser()  # 启用ConfigParser读取那些启动后即不会再被更改的数据，如BotToken等
-cf.read("auth.ini")
+cf.read("auth.ini", encoding="utf-8")
 _admin_user = cf.getint("bot", "admin")
 _token = cf.get("bot", "token")
 _api_id = cf.getint("bot", "api_id")
@@ -340,6 +340,12 @@ def _update(app):
                     return
 
         # 入群验证部分--------------------------------------------------------------------------------------------------
+        # 这里做一个判断让当出 bug 的时候不会重复弹出一车验证消息
+        for k, v in _current_challenges.items():
+            challenge_chat_id = int(k.split("|")[0])
+            if challenge_chat_id == message.chat.id and user_id == v[1]:
+                logging.info('重复的验证，用户id：{}, 群组 id {}'.format(user_id, chat_id))
+                return
 
         if message.from_user.id != target.id:
             if target.is_self:
@@ -435,7 +441,9 @@ def _update(app):
                 return
             if ch_id in _current_challenges:
                 # 预防异常
+                _cch_lock.acquire()
                 del _current_challenges[ch_id]
+                _cch_lock.release()
             timeout_event.stop()
             if query_data == "+":
                 try:
@@ -529,6 +537,10 @@ def _update(app):
                     can_pin_messages=True))
         except ChatAdminRequired:
             pass
+
+        _cch_lock.acquire()
+        del _current_challenges[ch_id]
+        _cch_lock.release()
 
         correct = str(challenge.ans()) == query_data
         if correct:
