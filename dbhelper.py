@@ -20,9 +20,10 @@ class DBHelper:
         CREATE TABLE IF NOT EXISTS group_config
         (
         group_id INTEGER PRIMARY KEY NOT NULL,
-        captcha_failed_action TEXT,
-        captcha_timeout_action TEXT,
-        captcha_timeout INTEGER,
+        challenge_failed_action TEXT,
+        challenge_timeout_action TEXT,
+        challenge_timeout INTEGER,
+        challenge_type TEXT,
         enable_global_blacklist INTEGER,
         enable_regex INTEGER,
         enable_third_party_blacklist INTEGER
@@ -206,13 +207,47 @@ class DBHelper:
             logging.error(str(e))
             return None
 
-    def get_group_config(self, group_id):
+    def get_group_config(self, group_id, field: str = 'all'):
+        """
+        获取群配置，默认返回所有配置，可以指定返回某个配置
+        field: 值为 challenge_failed_action,
+        challenge_timeout_action,
+        challenge_timeout,
+        challenge_type,
+        enable_global_blacklist,
+        enable_regex,
+        enable_third_party_blacklist
+
+        return: 如果指定了 field，返回指定的配置，否则返回所有配置
+
+        """
+
         stmt = "SELECT * FROM group_config WHERE group_id == (?)"
         args = group_id
         cur = self.conn.cursor()
         try:
             cur.execute(stmt, (args,))
             result = cur.fetchone()
+            if result is None:
+                return None
+            elif field == 'challenge_failed_action':
+                return result[1]
+            elif field == 'challenge_timeout_action':
+                return result[2]
+            elif field == 'challenge_timeout':
+                return result[3]
+            elif field == 'challenge_type':
+                return result[4]
+            elif field == 'enable_global_blacklist':
+                return result[5]
+            elif field == 'enable_regex':
+                return result[6]
+            elif field == 'enable_third_party_blacklist':
+                return result[7]
+            elif field == 'all':
+                return result
+            else:
+                return None
         except sqlite3.Error as e:
             logging.error(str(e))
             return None
@@ -221,19 +256,68 @@ class DBHelper:
         stmt = "INSERT OR REPLACE INTO group_config (group_id) VALUES (?)"
         args = (group_id,)
         try:
-            self.conn.execute(stmt, (args,))
+            self.conn.execute(stmt, args)
             self.conn.commit()
         except sqlite3.Error as e:
             logging.error(str(e))
-            return None
+            return False
 
     def set_group_config(self, group_id, key, value):
         if self.get_group_config(group_id) is None:
             self.new_group_config(group_id)
-        stmt = "UPDATE group_config SET " + key + " = ? WHERE group_id == ?"
+
+        value_type = 'str'
+
+        if key == 'challenge_failed_action':
+            if value != 'ban' and value != 'kick':
+                return False
+            stmt = "UPDATE group_config SET challenge_failed_action = (?) WHERE group_id = (?)"
+        elif key == 'challenge_timeout_action':
+            if value != 'ban' and value != 'kick':
+                return False
+            stmt = "UPDATE group_config SET challenge_timeout_action = (?) WHERE group_id = (?)"
+        elif key == 'challenge_timeout':
+            stmt = "UPDATE group_config SET challenge_timeout = (?) WHERE group_id = (?)"
+            value_type = 'int'
+        elif key == 'challenge_type':
+            if value != 'math' and value != 'reCAPTCHA':
+                return False
+            stmt = "UPDATE group_config SET challenge_type = (?) WHERE group_id = (?)"
+        elif key == 'enable_global_blacklist':
+            stmt = "UPDATE group_config SET enable_global_blacklist = (?) WHERE group_id = (?)"
+            value_type = 'bool'
+        elif key == 'enable_regex':
+            stmt = "UPDATE group_config SET enable_regex = (?) WHERE group_id = (?)"
+            value_type = 'bool'
+        elif key == 'enable_third_party_blacklist':
+            stmt = "UPDATE group_config SET enable_third_party_blacklist = (?) WHERE group_id = (?)"
+            value_type = 'bool'
+        else:
+            return False
+
+        if value_type == 'int':
+            try:
+                value = int(value)
+            except ValueError:
+                return False
+        if value_type == 'bool':
+            try:
+                value = int(value)
+                print(value)
+                if value != 0 and value != 1:
+                    return False
+            except ValueError:
+                return False
+
         args = (value, group_id)
+        cur = self.conn.cursor()
         try:
-            self.conn.execute(stmt, (args,))
+            cur.execute(stmt, args)
+            rows = cur.rowcount
             self.conn.commit()
+            if rows == 0:
+                return False
+            else:
+                return True
         except sqlite3.Error as e:
             logging.error(str(e))

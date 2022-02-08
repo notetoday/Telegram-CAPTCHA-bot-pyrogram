@@ -4,7 +4,7 @@ import random
 from pyrogram.types import (InlineKeyboardButton, Message)
 
 
-class Challenge:
+class Math:
     """
     如果你是 Python 高手，请继续；如果你根本不会Python或者语法乱七八糟，我建议你还是先去 https://docs.python.org 学习一个。
     一个简单的验证问题变量说明
