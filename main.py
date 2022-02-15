@@ -17,14 +17,17 @@ from Timer import Timer
 from challenge.math import Math
 from challenge.recaptcha import ReCAPTCHA
 from dbhelper import DBHelper
+from challengedata import ChallengeData
 
 db = DBHelper()
 
 _start_message = "YABE!"
 # _challenge_scheduler = sched.scheduler(time, sleep)
-_current_challenges = dict()
+_current_challenges = ChallengeData()
 _cch_lock = threading.Lock()
 _config = dict()
+admin_operate_filter = filters.create(lambda _, __, query: query.data.split(" ")[0] in ["+", "-"])
+
 '''
 读 只 读 配 置
 '''
@@ -40,7 +43,7 @@ logging.basicConfig(level=logging.INFO)
 
 # 设置一下日志记录，能够在诸如 systemctl status captchabot 这样的地方获得详细输出。
 
-def start_web(client: Client, _current_challenges: dict):
+def start_web(client: Client):
     import web
     port = cf.getint('web', 'flask_port')
     host = cf.get('web', 'flask_host')
@@ -49,6 +52,8 @@ def start_web(client: Client, _current_challenges: dict):
     web.web.secret_key = cf.get('web', 'flask_secret_key')
     web.client = client
     web._current_challenges = _current_challenges
+    web._config = _config
+    web._channel = _channel
     web.web.run(port=port, host=host)
 
 
@@ -69,23 +74,6 @@ def _update(app):
         pass
 
     # avoid event handler called twice or more by edit
-
-    @app.on_message(filters.command("test") & filters.private)
-    async def test(client: Client, message: Message):
-        _me: User = await client.get_me()
-        logging.info(message.text)
-        chat_id = message.chat.id
-        if message.from_user.id == _admin_user:
-            print(db.get_group_config(chat_id, 'challenge_type'))
-            db.set_group_config(chat_id, 'challenge_type', 'recaptcha')
-            print(db.set_group_config(chat_id, 'challenge_type', 'recaptcha'))
-            db.set_group_config(chat_id, 'challenge_type', 'math')
-            print(db.set_group_config(chat_id, 'challenge_type', 'recaptcha'))
-            print(db.set_group_config(chat_id, 'challenge_timeout_action', 'ban'))
-            print(db.get_group_config(chat_id, 'challenge_type'))
-        else:
-            logging.info("Permission denied, admin user in config is:" + str(_admin_user))
-            pass
 
     @app.on_message(filters.command("reload") & filters.private)
     async def reload_cfg(client: Client, message: Message):
@@ -112,33 +100,33 @@ def _update(app):
 
     @app.on_message(filters.command("start") & filters.private)
     async def start_command(client: Client, message: Message):
-        print(message.command)
+        user_id = message.from_user.id
         if len(message.command) != 2:
             await message.reply(_start_message)
             return
-        _cch_lock.acquire()
-        challenge_data = _current_challenges.get(message.command[1])
-        _cch_lock.release()
+        try:
+            from_chat_id = int(message.command[1])
+        except ValueError:
+            await message.reply(_start_message)
+            return
 
-        if challenge_data is None:
-            await message.reply("没有这条验证数据")
+        if from_chat_id >= 0:
+            await message.reply(_start_message)
+            return
+        ch_id, challenge_data = _current_challenges.get_by_user_and_chat_id(user_id, from_chat_id)
+
+        if challenge_data is None or ch_id is None:
+            await message.reply("这不是你的验证数据，请确认是否点击了正确的按钮")
             return
         else:
-            challenge = challenge_data[0]
-            target_id = challenge_data[1]
+            challenge, target_id, timeout_event = challenge_data
 
-        if target_id != message.from_user.id:
-            await message.reply("这不是你的验证数据，请确认是否点击了正确的按钮")
-        else:
-            _cch_lock.acquire()
-            _current_challenges[challenge.challenge_id] = _current_challenges.pop(challenge.auth_id)
-            _cch_lock.release()
-            await message.reply("点击下方按钮完成验证，您需要一个浏览器来完成它\n\n"
-                                "隐私提醒: \n"
-                                "当您打开验证页面时，我们和 Cloudflare 将不可避免的获得您访问使用的 IP 地址，即使我们并不记录它\n"
-                                "Google 将获得您的信息， 详见 [Privacy Policy](https://policies.google.com/privacy)\n"
-                                "如果您不想被记录，请返回群组，在超时时间内找到并联系群组管理员，您会在超时时间后被自动移出群组",
-                                reply_markup=InlineKeyboardMarkup(challenge.generate_auth_button()))
+        await message.reply("点击下方按钮完成验证，您需要一个浏览器来完成它\n\n"
+                            "隐私提醒: \n"
+                            "当您打开验证页面时，我们和 Cloudflare 将不可避免的获得您访问使用的 IP 地址，即使我们并不记录它\n"
+                            "Google 将获得您的信息， 详见 [Privacy Policy](https://policies.google.com/privacy)\n"
+                            "如果您不想被记录，请返回群组，在超时时间内找到并联系群组管理员，您会在超时时间后被自动移出群组",
+                            reply_markup=InlineKeyboardMarkup(challenge.generate_auth_button()))
 
     @app.on_message(filters.command("leave") & filters.private)
     async def leave_command(client: Client, message: Message):
@@ -437,11 +425,10 @@ def _update(app):
 
         # 入群验证部分--------------------------------------------------------------------------------------------------
         # 这里做一个判断让当出 bug 的时候不会重复弹出一车验证消息
-        for k, v in _current_challenges.items():
-            challenge_chat_id = int(k.split("|")[0])
-            if challenge_chat_id == message.chat.id and user_id == v[1]:
-                logging.info('重复的验证，用户id：{}, 群组 id {}'.format(user_id, chat_id))
-                return
+        if _current_challenges.is_duplicate(user_id, chat_id):
+            logging.error('重复的验证，用户id：{}, 群组 id {}'.format(user_id, chat_id))
+            return
+
         # 禁言用户 ----------------------------------------------------------------------------------------------------
         if message.from_user.id != target.id:
             if target.is_self:
@@ -474,7 +461,6 @@ def _update(app):
 
         if db.get_group_config(chat_id, 'challenge_type') == 'reCAPTCHA':
             challenge = ReCAPTCHA()
-            challenge.chat_id = chat_id
             timeout = group_config["challenge_timeout"]
             reply_message = await client.send_message(
                 message.chat.id,
@@ -482,9 +468,9 @@ def _update(app):
                                                                target_id=target.id,
                                                                timeout=timeout, ),
                 reply_markup=InlineKeyboardMarkup(
-                    challenge.generate_button(group_config)),
+                    challenge.generate_button(group_config, chat_id)),
             )
-            challenge_id = challenge.auth_id
+            challenge.message = reply_message
         else:  # 验证码验证 -------------------------------------------------------------------------------------------
             challenge = Math()
             timeout = group_config["challenge_timeout"]
@@ -497,23 +483,17 @@ def _update(app):
                 reply_markup=InlineKeyboardMarkup(
                     challenge.generate_button(group_config)),
             )
-            challenge_id = "{chat}|{msg}".format(chat=message.chat.id, msg=reply_message.message_id)
 
         # 开始计时 -----------------------------------------------------------------------------------------------------
-
+        challenge_id = "{chat}|{msg}".format(chat=message.chat.id, msg=reply_message.message_id)
         timeout_event = Timer(
             challenge_timeout(client, message, reply_message.message_id),
             timeout=group_config["challenge_timeout"],
         )
-        _cch_lock.acquire()
-        _current_challenges[challenge_id] = (challenge, message.from_user.id,
-                                             timeout_event)
-        _cch_lock.release()
+        _current_challenges[challenge_id] = (challenge, message.from_user.id, timeout_event)
 
-    @app.on_callback_query()
-    async def challenge_callback(client: Client,
-                                 callback_query: CallbackQuery):
-        print(callback_query.data)
+    @app.on_callback_query(admin_operate_filter)
+    async def admin_operate_callback(client: Client, callback_query: CallbackQuery):
         query_data = str(callback_query.data)
         query_id = callback_query.id
         chat_id = callback_query.message.chat.id
@@ -528,10 +508,7 @@ def _update(app):
         # 获取验证信息-----------------------------------------------------------------------------------------------
 
         ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
-
-        _cch_lock.acquire()
         challenge_data = _current_challenges.get(ch_id)
-        _cch_lock.release()
 
         if challenge_data is None:
             logging.error("challenge not found, challenge_id: {}".format(ch_id))
@@ -552,11 +529,7 @@ def _update(app):
                 await client.answer_callback_query(
                     query_id, group_config["msg_permission_denied"])
                 return
-            if ch_id in _current_challenges:
-                # 预防异常
-                _cch_lock.acquire()
-                del _current_challenges[ch_id]
-                _cch_lock.release()
+            _current_challenges.delete(ch_id)
             timeout_event.stop()
             if query_data == "+":
                 try:
@@ -625,6 +598,31 @@ def _update(app):
             await client.answer_callback_query(query_id)
             return
 
+    @app.on_callback_query()
+    async def challenge_answer_callback(client: Client, callback_query: CallbackQuery):
+        query_data = str(callback_query.data)
+        query_id = callback_query.id
+        chat_id = callback_query.message.chat.id
+        user_id = callback_query.from_user.id
+        msg_id = callback_query.message.message_id
+        chat_title = callback_query.message.chat.title
+        user_username = callback_query.from_user.username
+        user_first_name = callback_query.from_user.first_name
+        user_last_name = callback_query.from_user.last_name
+        group_config = _config.get(str(chat_id), _config["*"])
+
+        # 获取验证信息-----------------------------------------------------------------------------------------------
+
+        ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
+
+        challenge_data = _current_challenges.get(ch_id)
+
+        if challenge_data is None:
+            logging.error("challenge not found, challenge_id: {}".format(ch_id))
+            return
+        else:
+            challenge, target_id, timeout_event = challenge_data
+
         # 让捣蛋的一边玩去 ---------------------------------------------------------------------------------
 
         if user_id != target_id:
@@ -651,9 +649,7 @@ def _update(app):
         except ChatAdminRequired:
             pass
 
-        _cch_lock.acquire()
-        del _current_challenges[ch_id]
-        _cch_lock.release()
+        _current_challenges.delete(ch_id)
 
         correct = str(challenge.ans()) == query_data
         if correct:
@@ -751,7 +747,6 @@ def _update(app):
             )
 
     async def challenge_timeout(client: Client, message, reply_id):
-        global _current_challenges
         chat_id = message.chat.id
         from_id = message.from_user.id
         chat_title = message.chat.title
@@ -760,11 +755,8 @@ def _update(app):
         user_last_name = message.from_user.last_name
         _me: User = await client.get_me()
         group_config = _config.get(str(chat_id), _config["*"])
-
-        _cch_lock.acquire()
-        del _current_challenges["{chat}|{msg}".format(chat=chat_id,
-                                                      msg=reply_id)]
-        _cch_lock.release()
+        _current_challenges.delete("{chat}|{msg}".format(chat=chat_id,
+                                                         msg=reply_id))
 
         # TODO try catch
         await client.edit_message_text(
@@ -825,7 +817,7 @@ def _main():
 
         # start web
         tt = threading.Thread(
-            target=start_web, name="WebThread", args=(_app, _current_challenges))
+            target=start_web, name="WebThread", args=(_app,))
         tt.daemon = True
         logging.info('Starting webapi ....')
         tt.start()

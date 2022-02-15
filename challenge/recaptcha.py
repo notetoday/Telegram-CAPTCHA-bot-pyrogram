@@ -13,9 +13,9 @@ class ReCAPTCHA:
     def __init__(self):
         self.site_key = cf.get("reCAPTCHA", "site_key")
         self.secret_key = cf.get("reCAPTCHA", "secret_key")
-        self.challenge_id = str(uuid.uuid4().hex)  # 在用户启动 bot 后随机生成的一个 id, 用于 recaptcha 链接
-        self.auth_id = str(uuid.uuid4().hex)  # 在用户启动 bot 前生成，用来获取验证信息
-        self.chat_id = None
+        self.recaptcha_id = str(uuid.uuid4().hex)  # 在用户启动 bot 后随机生成的一个 id, 用于 recaptcha 链接
+        self.auth_url = cf.get("reCAPTCHA", "base_url") + "/recaptcha?challenge=" + str(self.recaptcha_id)
+        self.message = None
 
     def get_site_key(self):
         return self.site_key
@@ -34,16 +34,16 @@ class ReCAPTCHA:
         response_text = json.loads(response.text)
         return response_text['success']
 
-    def generate_button(self, group_config):
+    def generate_button(self, group_config, chat_id):
         link_to_bot = [[InlineKeyboardButton(text="开始验证",
-                                             url="https://t.me/NimaQu_Test_Bot?start=" + self.auth_id)]]
+                                             url="https://t.me/NimaQu_Test_Bot?start=" + str(chat_id))]]
         return link_to_bot + [[
             InlineKeyboardButton(group_config["msg_approve_manually"],
-                                 callback_data="+" + " " + self.auth_id),
+                                 callback_data=b"+"),
             InlineKeyboardButton(group_config["msg_refuse_manually"],
-                                 callback_data="-" + " " + self.auth_id),
+                                 callback_data=b"-"),
         ]]
 
     def generate_auth_button(self):
         return [[InlineKeyboardButton(text="开始验证",
-                                      url="http://127.0.0.1:5000/recaptcha?challenge=" + self.challenge_id)]]
+                                      url=self.auth_url)]]
