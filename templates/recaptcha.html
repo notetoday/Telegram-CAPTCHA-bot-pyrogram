@@ -1,15 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
-    <script src="https://www.recaptcha.net/recaptcha/api.js" async defer></script>
+    <title>完成验证</title>
+    <script src="https://www.recaptcha.net/recaptcha/api.js"></script>
+    <style>
+        .recaptcha {
+            margin-top: 50px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .submit-button {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .result {
+            margin: auto;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
 </head>
 <body>
+<div class="recaptcha">
     <form action="" method="POST">
-      <div class="g-recaptcha" data-sitekey="{{ sitekey }}"></div>
-      <br/>
-      <input type="submit" value="Submit">
+        <div class="g-recaptcha" data-sitekey="{{ sitekey }}"></div>
+        <br/>
+        <div class="submit-button">
+            <input type="submit" value="提交验证/Submit Verification">
+        </div>
     </form>
+</div>
+{% with messages = get_flashed_messages(category_filter='error') %}
+    {% if messages %}
+        <ul class=flashes>
+            {% for message in messages %}
+                <div class="result"><h2>{{ message }}</h2></div>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endwith %}
 </body>
 </html>
