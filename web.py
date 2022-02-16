@@ -7,7 +7,7 @@ from flask import render_template
 from pyrogram import Client
 from challengedata import ChallengeData
 
-web = Flask(__name__)
+app = Flask(__name__)
 client = Client('web')
 _current_challenges = ChallengeData()
 _config = dict()
@@ -15,12 +15,12 @@ db = DBHelper()
 _channel = 0
 
 
-@web.route("/")
+@app.route("/")
 def root():
     return render_template('index.html')
 
 
-@web.route("/recaptcha", methods=["GET", "POST"])
+@app.route("/recaptcha", methods=["GET", "POST"])
 async def verify():
     # 单元测试-----------------------------------------------------
     # return render_template('recaptcha.html', sitekey=114514)
@@ -108,7 +108,7 @@ async def verify():
 
 
 if __name__ == '__main__':
-    web.debug = True
-    web.env = 'debug'
-    web.secret_key = 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RT'
-    web.run(port=8181, host="127.0.0.1")
+    app.debug = True
+    app.env = 'debug'
+    app.secret_key = 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RT'
+    app.run(port=8181, host="127.0.0.1")

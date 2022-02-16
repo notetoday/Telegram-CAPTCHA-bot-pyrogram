@@ -12,12 +12,12 @@ from pyrogram import (Client, filters)
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
 from pyrogram.types import (InlineKeyboardMarkup, User, Message, ChatPermissions, CallbackQuery,
                             ChatMemberUpdated)
-
 from Timer import Timer
 from challenge.math import Math
 from challenge.recaptcha import ReCAPTCHA
 from dbhelper import DBHelper
 from challengedata import ChallengeData
+from waitress import serve
 
 db = DBHelper()
 
@@ -47,14 +47,16 @@ def start_web(client: Client):
     import web
     port = cf.getint('web', 'flask_port')
     host = cf.get('web', 'flask_host')
-    if cf.getboolean('web', 'debug'):
-        web.web.env = 'DEBUG'
-    web.web.secret_key = cf.get('web', 'flask_secret_key')
+    web.app.secret_key = cf.get('web', 'flask_secret_key')
     web.client = client
     web._current_challenges = _current_challenges
     web._config = _config
     web._channel = _channel
-    web.web.run(port=port, host=host)
+    if cf.getboolean('web', 'development'):
+        web.app.env = 'development '
+        web.app.run(host=host, port=port)
+    else:
+        serve(web.app, host=host, port=port)
 
 
 def load_config():
