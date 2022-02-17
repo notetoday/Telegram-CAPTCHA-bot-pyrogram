@@ -5,7 +5,6 @@ import logging
 import threading
 import time
 import datetime
-import re
 from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
@@ -180,120 +179,6 @@ def _update(app):
             logging.info("Permission denied, admin user in config is:" + str(_admin_user))
             return
 
-    @app.on_message(filters.command("regexadd") & filters.group)
-    async def add_regex(client: Client, message: Message):
-        group_config = _config.get(str(message.chat.id), _config["*"])
-        chat_id = message.chat.id
-        if message.from_user is None:
-            await message.reply("请从个人账号发送指令。")
-            return
-        user_id = message.from_user.id
-        admins = await client.get_chat_members(chat_id, filter="administrators")
-        help_message = "使用方法:\n /regexadd [规则描述] [动作] [匹配类型] [正则表达式]" \
-                       "\n\n参数使用空格分开\n规则描述: 对于这条规则的简短描述" \
-                       "\n\n动作: 匹配到规则后的动作，值为 `ban` 永久封禁或 `kick` 踢出" \
-                       "\n\n匹配类型: 值为 `username` 用户名或 `name` 用户名字" \
-                       "\n\n正则表达式: Perl 正则表达式" \
-                       "\n例如:" \
-                       "\n /regexadd 封禁恶意用户 ban username ^[a-zA-Z0-9_]{5,20}$" \
-                       "\n\n(这例子是 Github Copilot 自动写的，我压根就不会写正则) "
-
-        if not any([
-            admin.user.id == user_id and
-            (admin.status == "creator" or admin.can_restrict_members)
-            for admin in admins
-        ]):
-            await message.reply(group_config["msg_permission_denied"])
-            return
-
-        args = message.text.split(" ", maxsplit=4)
-        if len(args) != 5:
-            await message.reply(help_message)
-            return
-        description = args[1]
-        action = args[2]
-        match_type = args[3]
-        regex = args[4].encode("utf-8")
-        if action not in ["ban", "kick"] or match_type not in ["username", "name"]:
-            await message.reply(help_message)
-            return
-        result = db.new_regex(chat_id, regex, match_type, action, description)
-        if result:
-            await message.reply("已添加规则：\n" + description)
-        else:
-            await message.reply("添加失败，超出本群正则表达式数量限制")
-        return
-
-    @app.on_message(filters.command("regexdel") & filters.group)
-    async def del_regex(client: Client, message: Message):
-        chat_id = message.chat.id
-        if message.from_user is None:
-            await message.reply("请从个人账号发送指令。")
-            return
-        user_id = message.from_user.id
-        group_config = _config.get(str(chat_id), _config["*"])
-        admins = await client.get_chat_members(chat_id, filter="administrators")
-        help_message = "使用方法:\n" \
-                       "/regexdel [规则 ID]\n\n不知道规则 ID 可以使用 /regexlist 查看"
-
-        if not any([
-            admin.user.id == user_id and
-            (admin.status == "creator" or admin.can_restrict_members)
-            for admin in admins
-        ]):
-            await message.reply(group_config["msg_permission_denied"])
-            return
-
-        args = message.text.split(" ", maxsplit=2)
-        if len(args) != 2:
-            await message.reply(help_message)
-            return
-        regex_id = args[1]
-        result = db.delete_regex(regex_id, chat_id)
-        if result:
-            await message.reply("规则删除成功")
-        else:
-            await message.reply("规则删除失败，可能规则不属于这个群组")
-        return
-
-    @app.on_message(filters.command("regexlist") & filters.group)
-    async def del_regex(client: Client, message: Message):
-        chat_id = message.chat.id
-        if message.from_user is None:
-            await message.reply("请从个人账号发送指令。")
-            return
-        user_id = message.from_user.id
-        group_config = _config.get(str(chat_id), _config["*"])
-        admins = await client.get_chat_members(chat_id, filter="administrators")
-
-        if not any([
-            admin.user.id == user_id and
-            (admin.status == "creator" or admin.can_restrict_members)
-            for admin in admins
-        ]):
-            await message.reply(group_config["msg_permission_denied"])
-            return
-
-        regex_rules = db.get_regex(chat_id)
-        regex_list = ""
-        for regex_rule in regex_rules:
-            rid = regex_rule[0]
-            regex = regex_rule[2].decode("utf-8")
-            match = regex_rule[3]
-            action = regex_rule[4]
-            description = regex_rule[5]
-            regex_list += "ID: `{rid}`" \
-                          "\n正则表达式: `{regex}`" \
-                          "\n匹配: `{match}`" \
-                          "\n动作: `{action}`" \
-                          "\n备注：`{description}`" \
-                          "\n- - - - - - - - - - " \
-                          "\n".format(rid=rid, regex=regex, match=match, action=action, description=description)
-        if regex_list == "":
-            await message.reply("这个群组没有规则")
-        else:
-            await message.reply(regex_list)
-
     @app.on_message(filters.command("faset") & filters.group)
     async def set_config(client: Client, message: Message):
         if message.from_user is None:
@@ -311,7 +196,6 @@ def _update(app):
                        "`challenge_timeout`: 验证超时时间，单位为秒\n" \
                        "`challenge_type`: 验证方法，当前可用为数学题 `math` 或 `reCAPTCHA` 谷歌验证码\n" \
                        "`enable_global_blacklist`: 是否启用全局黑名单，值为 `1` 启用或 `0` 禁用\n" \
-                       "`enable_regex`: 是否启用正则表达式，值为 `1` 启用或 `0` 禁用\n" \
                        "`enable_third_party_blacklist`: 是否启用第三方黑名单，值为 `true` 或 `false`\n\n" \
                        "例如: \n" \
                        "`/faset challenge_type reCAPTCHA`\n\n" \
@@ -381,49 +265,6 @@ def _update(app):
                 return
             else:
                 db.whitelist(target.id)
-
-        # 正则匹配部分--------------------------------------------------------------------------------------------------
-
-        if target.last_name:
-            name = target.first_name + target.last_name
-        else:
-            name = target.first_name
-        regex_rules = db.get_regex(chat_id)
-        if regex_rules:
-            for regex_rule in regex_rules:
-                rid = regex_rule[0]
-                regex = regex_rule[2].decode("utf-8")
-                match = regex_rule[3]
-                action = regex_rule[4]
-                match_result = False
-                if match == 'username' and target.username:
-                    if re.search(regex, target.username):
-                        match_result = True
-                if match == 'name':
-                    if re.search(regex, name):
-                        match_result = True
-                if match_result:
-                    try:
-                        if action == 'kick':
-                            await client.ban_chat_member(chat_id=chat_id, user_id=user_id)
-                            await client.unban_chat_member(chat_id=chat_id, user_id=user_id)
-                        if action == 'ban':
-                            await client.ban_chat_member(chat_id=chat_id, user_id=user_id)
-                        await client.send_message(
-                            _channel,
-                            text=_config["msg_failed_regex"].format(
-                                targetuserid=str(target.id),
-                                targetusername=str(target.username),
-                                targetfirstname=str(target.first_name),
-                                targetlastname=str(target.last_name),
-                                regexid=str(rid),
-                                regex=str(regex),
-                                groupid=str(chat_id),
-                                grouptitle=str(message.chat.title)
-                            ))
-                    except RPCError as e:
-                        logging.error(str(e))
-                    return
 
         # 入群验证部分--------------------------------------------------------------------------------------------------
         # 这里做一个判断让当出 bug 的时候不会重复弹出一车验证消息

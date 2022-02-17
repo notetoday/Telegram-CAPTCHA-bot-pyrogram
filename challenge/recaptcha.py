@@ -3,7 +3,6 @@ from pyrogram.types import (InlineKeyboardButton, Message)
 import requests
 import json
 import uuid
-import random
 
 cf = ConfigParser()
 cf.read("auth.ini", encoding="utf-8")

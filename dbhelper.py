@@ -25,18 +25,7 @@ class DBHelper:
         challenge_timeout INTEGER,
         challenge_type TEXT,
         enable_global_blacklist INTEGER,
-        enable_regex INTEGER,
         enable_third_party_blacklist INTEGER
-        );
-        
-        CREATE TABLE IF NOT EXISTS regex
-        (
-        id INTEGER PRIMARY KEY AUTOINCREMENT NULL,
-        group_id INTEGER NOT NULL,
-        regex BLOB NOT NULL,
-        match TEXT NOT NULL,
-        action TEXT NOT NULL,
-        description TEXT NOT NULL
         );
         ''')
         try:
@@ -155,58 +144,6 @@ class DBHelper:
         except sqlite3.Error as e:
             logging.error(str(e))
 
-    def new_regex(self, group_id, regex, match, action, description):
-        if self.regex_count(group_id) >= 10:
-            return False
-        stmt = "INSERT OR REPLACE INTO regex (group_id, regex, match, action, description) VALUES (?,?,?,?,?)"
-        args = (group_id, regex, match, action, description)
-        try:
-            self.conn.execute(stmt, args)
-            self.conn.commit()
-        except sqlite3.Error as e:
-            logging.error(str(e))
-        return True
-
-    def get_regex(self, group_id):
-        stmt = "SELECT * FROM regex WHERE group_id == (?)"
-        args = group_id
-        cur = self.conn.cursor()
-        try:
-            cur.execute(stmt, (args,))
-            result = cur.fetchall()
-        except sqlite3.Error as e:
-            logging.error(str(e))
-            return None
-        return result
-
-    def regex_count(self, group_id):
-        stmt = "SELECT COUNT(*) FROM regex WHERE group_id == (?)"
-        args = group_id
-        cur = self.conn.cursor()
-        try:
-            cur.execute(stmt, (args,))
-            result = cur.fetchone()[0]
-        except sqlite3.Error as e:
-            logging.error(str(e))
-            return None
-        return result
-
-    def delete_regex(self, rid, group_id):
-        stmt = "DELETE FROM regex WHERE id = (?) and group_id = (?)"
-        args = (rid, group_id)
-        cur = self.conn.cursor()
-        try:
-            cur.execute(stmt, args)
-            rows = cur.rowcount
-            self.conn.commit()
-            if rows == 0:
-                return False
-            else:
-                return True
-        except sqlite3.Error as e:
-            logging.error(str(e))
-            return None
-
     def get_group_config(self, group_id, field: str = 'all'):
         """
         获取群配置，默认返回所有配置，可以指定返回某个配置
@@ -215,7 +152,6 @@ class DBHelper:
         challenge_timeout,
         challenge_type,
         enable_global_blacklist,
-        enable_regex,
         enable_third_party_blacklist
 
         return: 如果指定了 field，返回指定的配置，否则返回所有配置
@@ -240,10 +176,8 @@ class DBHelper:
                 return result[4]
             elif field == 'enable_global_blacklist':
                 return result[5]
-            elif field == 'enable_regex':
-                return result[6]
             elif field == 'enable_third_party_blacklist':
-                return result[7]
+                return result[6]
             elif field == 'all':
                 return result
             else:
@@ -285,9 +219,6 @@ class DBHelper:
             stmt = "UPDATE group_config SET challenge_type = (?) WHERE group_id = (?)"
         elif key == 'enable_global_blacklist':
             stmt = "UPDATE group_config SET enable_global_blacklist = (?) WHERE group_id = (?)"
-            value_type = 'bool'
-        elif key == 'enable_regex':
-            stmt = "UPDATE group_config SET enable_regex = (?) WHERE group_id = (?)"
             value_type = 'bool'
         elif key == 'enable_third_party_blacklist':
             stmt = "UPDATE group_config SET enable_third_party_blacklist = (?) WHERE group_id = (?)"
