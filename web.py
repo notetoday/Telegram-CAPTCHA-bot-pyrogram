@@ -22,9 +22,9 @@ def root():
 
 @app.route("/recaptcha", methods=["GET", "POST"])
 async def verify():
-    # 单元测试-----------------------------------------------------
+    # 测试模板用-----------------------------------------------------
     # return render_template('recaptcha.html', sitekey=114514)
-    # 单元测试-----------------------------------------------------
+    # 测试模板用-----------------------------------------------------
 
     if request.args.get('challenge') is None:
         flash("没有这条验证数据！", "error")
@@ -111,4 +111,4 @@ if __name__ == '__main__':
     app.debug = True
     app.env = 'debug'
     app.secret_key = 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RT'
-    app.run(port=8181, host="127.0.0.1")
+    app.run(port=5000, host="127.0.0.1")
