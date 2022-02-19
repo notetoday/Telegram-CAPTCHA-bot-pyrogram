@@ -2,7 +2,7 @@
 
 一个用于验证新成员是不是真人的bot。
 
-[![GNU Public License Affero 3.0](https://img.shields.io/badge/license-AGPL3.0-%23373737.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html) [![Python 3.6](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org) [![Pyrogram](https://img.shields.io/badge/Pyrogram-asyncio-green.svg)](https://github.com/pyrogram/pyrogram/)
+[![GNU Public License Affero 3.0](https://img.shields.io/badge/license-AGPL3.0-%23373737.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html) [![Python 3.9](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org) [![Pyrogram](https://img.shields.io/badge/Pyrogram-asyncio-green.svg)](https://github.com/pyrogram/pyrogram/)
 
 A bot running on Telegram which will send CAPTCHA to verify if the new member is a human.
 
@@ -27,6 +27,9 @@ A: 当前此 bot 实例只会进行踢出群操作，只需要再次加入你想
 Telegram Bot API 使用了基于 MTProto 框架的 pyrogram，多线程使用了 asyncio。
 
 ## 安装与使用
+
+此仓库仅为遵守 AGPL 协议进行代码展示，并未对用户部署使用进行优化，普通用户建议直接使用[原始项目](https://github.com/Tooruchan/Telegram-CAPTCHA-bot-pyrogram) 如果你仍想使用此 Bot，请参照下面说明进行部署。
+
 **由于 Bot 使用了 Python 3.6 的 [变量类型标注](https://docs.python.org/zh-cn/3/library/typing.html) 这一特性，在低于 Python 3.6 的版本上会出现 SyntaxError，因此源码只能在 Python 3.6+ 上运行!**  
 1. 请先向 [@BotFather](https://t.me/botfather) 申请一个 Bot API Token  
 > 你申请到的机器人会在你的 Telegram 账号所在数据中心上运行（即申请机器人的账号A位于 DC 5 (新加坡)，则 A 申请到的机器人也将会在 DC5 上运行)

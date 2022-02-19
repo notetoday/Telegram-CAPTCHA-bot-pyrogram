@@ -5,26 +5,28 @@ import logging
 import threading
 import time
 import datetime
-import re
 from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
 from pyrogram.types import (InlineKeyboardMarkup, User, Message, ChatPermissions, CallbackQuery,
                             ChatMemberUpdated)
-
 from Timer import Timer
-from challenge.math import Challenge
-
+from challenge.math import Math
+from challenge.recaptcha import ReCAPTCHA
 from dbhelper import DBHelper
+from challengedata import ChallengeData
+from waitress import serve
 
 db = DBHelper()
 
 _start_message = "YABE!"
 # _challenge_scheduler = sched.scheduler(time, sleep)
-_current_challenges = dict()
+_current_challenges = ChallengeData()
 _cch_lock = threading.Lock()
 _config = dict()
+admin_operate_filter = filters.create(lambda _, __, query: query.data.split(" ")[0] in ["+", "-"])
+
 '''
 读 只 读 配 置
 '''
@@ -40,6 +42,21 @@ logging.basicConfig(level=logging.INFO)
 
 # 设置一下日志记录，能够在诸如 systemctl status captchabot 这样的地方获得详细输出。
 
+def start_web(client: Client):
+    import web
+    port = cf.getint('web', 'flask_port')
+    host = cf.get('web', 'flask_host')
+    web.app.secret_key = cf.get('web', 'flask_secret_key')
+    web.client = client
+    web._current_challenges = _current_challenges
+    web._config = _config
+    web._channel = _channel
+    if cf.getboolean('web', 'development'):
+        web.app.env = 'development '
+        web.app.run(host=host, port=port)
+    else:
+        serve(web.app, host=host, port=port)
+
 
 def load_config():
     global _config
@@ -54,8 +71,9 @@ def save_config():
 
 def _update(app):
     @app.on_message(filters.edited)
-    async def edited( client, message):
+    async def edited(client, message):
         pass
+
     # avoid event handler called twice or more by edit
 
     @app.on_message(filters.command("reload") & filters.private)
@@ -83,7 +101,33 @@ def _update(app):
 
     @app.on_message(filters.command("start") & filters.private)
     async def start_command(client: Client, message: Message):
-        await message.reply(_start_message)
+        user_id = message.from_user.id
+        if len(message.command) != 2:
+            await message.reply(_start_message)
+            return
+        try:
+            from_chat_id = int(message.command[1])
+        except ValueError:
+            await message.reply(_start_message)
+            return
+
+        if from_chat_id >= 0:
+            await message.reply(_start_message)
+            return
+        ch_id, challenge_data = _current_challenges.get_by_user_and_chat_id(user_id, from_chat_id)
+
+        if challenge_data is None or ch_id is None:
+            await message.reply("这不是你的验证数据，请确认是否点击了正确的按钮")
+            return
+        else:
+            challenge, target_id, timeout_event = challenge_data
+
+        await message.reply("点击下方按钮完成验证，您需要一个浏览器来完成它\n\n"
+                            "隐私提醒: \n"
+                            "当您打开验证页面时，我们和 Cloudflare 将不可避免的获得您访问使用的 IP 地址，即使我们并不记录它\n"
+                            "Google 将获得您的信息， 详见 [Privacy Policy](https://policies.google.com/privacy)\n"
+                            "如果您不想被记录，请返回群组，在超时时间内找到并联系群组管理员，您会在超时时间后被自动移出群组",
+                            reply_markup=InlineKeyboardMarkup(challenge.generate_auth_button()))
 
     @app.on_message(filters.command("leave") & filters.private)
     async def leave_command(client: Client, message: Message):
@@ -135,62 +179,27 @@ def _update(app):
             logging.info("Permission denied, admin user in config is:" + str(_admin_user))
             return
 
-    @app.on_message(filters.command("regexadd") & filters.group)
-    async def add_regex(client: Client, message: Message):
-        group_config = _config.get(str(message.chat.id), _config["*"])
-        chat_id = message.chat.id
+    @app.on_message(filters.command("faset") & filters.group)
+    async def set_config(client: Client, message: Message):
         if message.from_user is None:
             await message.reply("请从个人账号发送指令。")
             return
-        user_id = message.from_user.id
-        admins = await client.get_chat_members(chat_id, filter="administrators")
-        help_message = "使用方法:\n /regexadd [规则描述] [动作] [匹配类型] [正则表达式]" \
-                       "\n\n参数使用空格分开\n规则描述: 对于这条规则的简短描述" \
-                       "\n\n动作: 匹配到规则后的动作，值为 `ban` 永久封禁或 `kick` 踢出" \
-                       "\n\n匹配类型: 值为 `username` 用户名或 `name` 用户名字" \
-                       "\n\n正则表达式: Perl 正则表达式" \
-                       "\n例如:" \
-                       "\n /regexadd 封禁恶意用户 ban username ^[a-zA-Z0-9_]{5,20}$" \
-                       "\n\n(这例子是 Github Copilot 自动写的，我压根就不会写正则) "
-
-        if not any([
-            admin.user.id == user_id and
-            (admin.status == "creator" or admin.can_restrict_members)
-            for admin in admins
-        ]):
-            await message.reply(group_config["msg_permission_denied"])
-            return
-
-        args = message.text.split(" ", maxsplit=4)
-        if len(args) != 5:
-            await message.reply(help_message)
-            return
-        description = args[1]
-        action = args[2]
-        match_type = args[3]
-        regex = args[4].encode("utf-8")
-        if action not in ["ban", "kick"] or match_type not in ["username", "name"]:
-            await message.reply(help_message)
-            return
-        result = db.new_regex(chat_id, regex, match_type, action, description)
-        if result:
-            await message.reply("已添加规则：\n" + description)
-        else:
-            await message.reply("添加失败，超出本群正则表达式数量限制")
-        return
-
-    @app.on_message(filters.command("regexdel") & filters.group)
-    async def del_regex(client: Client, message: Message):
         chat_id = message.chat.id
-        if message.from_user is None:
-            await message.reply("请从个人账号发送指令。")
-            return
-        user_id = message.from_user.id
         group_config = _config.get(str(chat_id), _config["*"])
+        user_id = message.from_user.id
         admins = await client.get_chat_members(chat_id, filter="administrators")
         help_message = "使用方法:\n" \
-                       "/regexdel [规则 ID]\n\n不知道规则 ID 可以使用 /regexlist 查看"
-
+                       "/faset [配置项] [值]\n\n" \
+                       "配置项:\n" \
+                       "`challenge_failed_action`: 验证失败的动作，值为 `ban` 封禁或 `kick` 踢出\n" \
+                       "`challenge_timeout_action`: 验证超时的动作，值为 `ban` 封禁或 `kick` 踢出\n" \
+                       "`challenge_timeout`: 验证超时时间，单位为秒\n" \
+                       "`challenge_type`: 验证方法，当前可用为数学题 `math` 或 `reCAPTCHA` 谷歌验证码\n" \
+                       "`enable_global_blacklist`: 是否启用全局黑名单，值为 `1` 启用或 `0` 禁用\n" \
+                       "`enable_third_party_blacklist`: 是否启用第三方黑名单，值为 `true` 或 `false`\n\n" \
+                       "例如: \n" \
+                       "`/faset challenge_type reCAPTCHA`\n\n" \
+                       "PS: 当前仅有 challenge_type 有效，其他配置项开发中。"
         if not any([
             admin.user.id == user_id and
             (admin.status == "creator" or admin.can_restrict_members)
@@ -199,55 +208,16 @@ def _update(app):
             await message.reply(group_config["msg_permission_denied"])
             return
 
-        args = message.text.split(" ", maxsplit=2)
-        if len(args) != 2:
+        args = message.text.split(" ", maxsplit=3)
+        if len(args) != 3:
             await message.reply(help_message)
             return
-        regex_id = args[1]
-        result = db.delete_regex(regex_id, chat_id)
-        if result:
-            await message.reply("规则删除成功")
+        key = args[1]
+        value = args[2]
+        if db.set_group_config(chat_id, key, value):
+            await message.reply("配置项设置成功")
         else:
-            await message.reply("规则删除失败，可能规则不属于这个群组")
-        return
-
-    @app.on_message(filters.command("regexlist") & filters.group)
-    async def del_regex(client: Client, message: Message):
-        chat_id = message.chat.id
-        if message.from_user is None:
-            await message.reply("请从个人账号发送指令。")
-            return
-        user_id = message.from_user.id
-        group_config = _config.get(str(chat_id), _config["*"])
-        admins = await client.get_chat_members(chat_id, filter="administrators")
-
-        if not any([
-            admin.user.id == user_id and
-            (admin.status == "creator" or admin.can_restrict_members)
-            for admin in admins
-        ]):
-            await message.reply(group_config["msg_permission_denied"])
-            return
-
-        regex_rules = db.get_regex(chat_id)
-        regex_list = ""
-        for regex_rule in regex_rules:
-            rid = regex_rule[0]
-            regex = regex_rule[2].decode("utf-8")
-            match = regex_rule[3]
-            action = regex_rule[4]
-            description = regex_rule[5]
-            regex_list += "ID: `{rid}`" \
-                          "\n正则表达式: `{regex}`" \
-                          "\n匹配: `{match}`" \
-                          "\n动作: `{action}`" \
-                          "\n备注：`{description}`" \
-                          "\n- - - - - - - - - - " \
-                          "\n".format(rid=rid, regex=regex, match=match, action=action, description=description)
-        if regex_list == "":
-            await message.reply("这个群组没有规则")
-        else:
-            await message.reply(regex_list)
+            await message.reply("配置项设置失败, 请输入 /fasset 查看帮助")
 
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
@@ -296,57 +266,13 @@ def _update(app):
             else:
                 db.whitelist(target.id)
 
-        # 正则匹配部分--------------------------------------------------------------------------------------------------
-
-        if target.last_name:
-            name = target.first_name + target.last_name
-        else:
-            name = target.first_name
-        regex_rules = db.get_regex(chat_id)
-        if regex_rules:
-            for regex_rule in regex_rules:
-                rid = regex_rule[0]
-                regex = regex_rule[2].decode("utf-8")
-                match = regex_rule[3]
-                action = regex_rule[4]
-                match_result = False
-                if match == 'username' and target.username:
-                    if re.search(regex, target.username):
-                        match_result = True
-                if match == 'name':
-                    if re.search(regex, name):
-                        match_result = True
-                if match_result:
-                    try:
-                        if action == 'kick':
-                            await client.ban_chat_member(chat_id=chat_id, user_id=user_id)
-                            await client.unban_chat_member(chat_id=chat_id, user_id=user_id)
-                        if action == 'ban':
-                            await client.ban_chat_member(chat_id=chat_id, user_id=user_id)
-                        await client.send_message(
-                            _channel,
-                            text=_config["msg_failed_regex"].format(
-                                targetuserid=str(target.id),
-                                targetusername=str(target.username),
-                                targetfirstname=str(target.first_name),
-                                targetlastname=str(target.last_name),
-                                regexid=str(rid),
-                                regex=str(regex),
-                                groupid=str(chat_id),
-                                grouptitle=str(message.chat.title)
-                            ))
-                    except RPCError as e:
-                        logging.error(str(e))
-                    return
-
         # 入群验证部分--------------------------------------------------------------------------------------------------
         # 这里做一个判断让当出 bug 的时候不会重复弹出一车验证消息
-        for k, v in _current_challenges.items():
-            challenge_chat_id = int(k.split("|")[0])
-            if challenge_chat_id == message.chat.id and user_id == v[1]:
-                logging.info('重复的验证，用户id：{}, 群组 id {}'.format(user_id, chat_id))
-                return
+        if _current_challenges.is_duplicate(user_id, chat_id):
+            logging.error('重复的验证，用户id：{}, 群组 id {}'.format(user_id, chat_id))
+            return
 
+        # 禁言用户 ----------------------------------------------------------------------------------------------------
         if message.from_user.id != target.id:
             if target.is_self:
                 try:
@@ -374,33 +300,43 @@ def _update(app):
                 permissions=ChatPermissions(can_send_messages=False))
         except ChatAdminRequired:
             return
-        challenge = Challenge()
+        # reCAPTCHA 验证 ----------------------------------------------------------------------------------------------
 
-        timeout = group_config["challenge_timeout"]
-        reply_message = await client.send_message(
-            message.chat.id,
-            group_config["msg_challenge"].format(target=target.first_name,
-                                                 target_id=target.id,
-                                                 timeout=timeout,
-                                                 challenge=challenge.qus()),
-            reply_markup=InlineKeyboardMarkup(
-                challenge.generate_button(group_config)),
-        )
-        _me: User = await client.get_me()
+        if db.get_group_config(chat_id, 'challenge_type') == 'reCAPTCHA':
+            challenge = ReCAPTCHA()
+            timeout = group_config["challenge_timeout"]
+            reply_message = await client.send_message(
+                message.chat.id,
+                group_config["msg_challenge_recaptcha"].format(target=target.first_name,
+                                                               target_id=target.id,
+                                                               timeout=timeout, ),
+                reply_markup=InlineKeyboardMarkup(
+                    challenge.generate_button(group_config, chat_id)),
+            )
+            challenge.message = reply_message
+        else:  # 验证码验证 -------------------------------------------------------------------------------------------
+            challenge = Math()
+            timeout = group_config["challenge_timeout"]
+            reply_message = await client.send_message(
+                message.chat.id,
+                group_config["msg_challenge_math"].format(target=target.first_name,
+                                                          target_id=target.id,
+                                                          timeout=timeout,
+                                                          challenge=challenge.qus()),
+                reply_markup=InlineKeyboardMarkup(
+                    challenge.generate_button(group_config)),
+            )
+
+        # 开始计时 -----------------------------------------------------------------------------------------------------
+        challenge_id = "{chat}|{msg}".format(chat=message.chat.id, msg=reply_message.message_id)
         timeout_event = Timer(
             challenge_timeout(client, message, reply_message.message_id),
             timeout=group_config["challenge_timeout"],
         )
-        _cch_lock.acquire()
-        _current_challenges["{chat}|{msg}".format(
-            chat=message.chat.id,
-            msg=reply_message.message_id)] = (challenge, message.from_user.id,
-                                              timeout_event)
-        _cch_lock.release()
+        _current_challenges[challenge_id] = (challenge, message.from_user.id, timeout_event)
 
-    @app.on_callback_query()
-    async def challenge_callback(client: Client,
-                                 callback_query: CallbackQuery):
+    @app.on_callback_query(admin_operate_filter)
+    async def admin_operate_callback(client: Client, callback_query: CallbackQuery):
         query_data = str(callback_query.data)
         query_id = callback_query.id
         chat_id = callback_query.message.chat.id
@@ -415,10 +351,7 @@ def _update(app):
         # 获取验证信息-----------------------------------------------------------------------------------------------
 
         ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
-
-        _cch_lock.acquire()
         challenge_data = _current_challenges.get(ch_id)
-        _cch_lock.release()
 
         if challenge_data is None:
             logging.error("challenge not found, challenge_id: {}".format(ch_id))
@@ -439,11 +372,7 @@ def _update(app):
                 await client.answer_callback_query(
                     query_id, group_config["msg_permission_denied"])
                 return
-            if ch_id in _current_challenges:
-                # 预防异常
-                _cch_lock.acquire()
-                del _current_challenges[ch_id]
-                _cch_lock.release()
+            _current_challenges.delete(ch_id)
             timeout_event.stop()
             if query_data == "+":
                 try:
@@ -512,6 +441,31 @@ def _update(app):
             await client.answer_callback_query(query_id)
             return
 
+    @app.on_callback_query()
+    async def challenge_answer_callback(client: Client, callback_query: CallbackQuery):
+        query_data = str(callback_query.data)
+        query_id = callback_query.id
+        chat_id = callback_query.message.chat.id
+        user_id = callback_query.from_user.id
+        msg_id = callback_query.message.message_id
+        chat_title = callback_query.message.chat.title
+        user_username = callback_query.from_user.username
+        user_first_name = callback_query.from_user.first_name
+        user_last_name = callback_query.from_user.last_name
+        group_config = _config.get(str(chat_id), _config["*"])
+
+        # 获取验证信息-----------------------------------------------------------------------------------------------
+
+        ch_id = "{chat}|{msg}".format(chat=chat_id, msg=msg_id)
+
+        challenge_data = _current_challenges.get(ch_id)
+
+        if challenge_data is None:
+            logging.error("challenge not found, challenge_id: {}".format(ch_id))
+            return
+        else:
+            challenge, target_id, timeout_event = challenge_data
+
         # 让捣蛋的一边玩去 ---------------------------------------------------------------------------------
 
         if user_id != target_id:
@@ -538,9 +492,7 @@ def _update(app):
         except ChatAdminRequired:
             pass
 
-        _cch_lock.acquire()
-        del _current_challenges[ch_id]
-        _cch_lock.release()
+        _current_challenges.delete(ch_id)
 
         correct = str(challenge.ans()) == query_data
         if correct:
@@ -638,7 +590,6 @@ def _update(app):
             )
 
     async def challenge_timeout(client: Client, message, reply_id):
-        global _current_challenges
         chat_id = message.chat.id
         from_id = message.from_user.id
         chat_title = message.chat.title
@@ -647,11 +598,8 @@ def _update(app):
         user_last_name = message.from_user.last_name
         _me: User = await client.get_me()
         group_config = _config.get(str(chat_id), _config["*"])
-
-        _cch_lock.acquire()
-        del _current_challenges["{chat}|{msg}".format(chat=chat_id,
-                                                      msg=reply_id)]
-        _cch_lock.release()
+        _current_challenges.delete("{chat}|{msg}".format(chat=chat_id,
+                                                         msg=reply_id))
 
         # TODO try catch
         await client.edit_message_text(
@@ -709,6 +657,15 @@ def _main():
                       api_id=_api_id,
                       api_hash=_api_hash)
     try:
+
+        # start web
+        tt = threading.Thread(
+            target=start_web, name="WebThread", args=(_app,))
+        tt.daemon = True
+        logging.info('Starting webapi ....')
+        tt.start()
+
+        # start bot
         _update(_app)
         _app.run()
     except KeyboardInterrupt:
