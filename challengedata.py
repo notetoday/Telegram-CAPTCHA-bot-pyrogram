@@ -1,5 +1,4 @@
 import threading
-import logging
 
 
 class ChallengeData:
@@ -59,12 +58,8 @@ class ChallengeData:
         """
         self.t_lock.acquire()
         for ch_id, value in self.data.items():
-            try:
-                if challenge_id == value[0].recaptcha_id:
-                    break
-            except AttributeError:
-                logging.error("get_by_challenge_id error: is math, challenge_id: {}".format(challenge_id))
-                return None
+            if challenge_id == value[0].recaptcha_id:
+                break
         else:
             self.t_lock.release()
             return None
