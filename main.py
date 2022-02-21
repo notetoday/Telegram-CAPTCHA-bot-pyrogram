@@ -300,6 +300,10 @@ def _update(app):
                 permissions=ChatPermissions(can_send_messages=False))
         except ChatAdminRequired:
             return
+        except RPCError:
+            await client.send_message(
+                message.chat.id, "当前群组不是超级群组，Bot 无法工作，可能是成员过少。\n请尝试添加更多用户，或者禁言一个用户，让 Telegram 将该群转换为超级群组")
+            return
         # reCAPTCHA 验证 ----------------------------------------------------------------------------------------------
 
         if db.get_group_config(chat_id, 'challenge_type') == 'reCAPTCHA':

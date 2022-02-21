@@ -1,5 +1,8 @@
 import threading
 
+from challenge.math import Math
+from challenge.recaptcha import ReCAPTCHA
+
 
 class ChallengeData:
     def __init__(self):
@@ -57,9 +60,10 @@ class ChallengeData:
         :return: tuple(key, value)
         """
         self.t_lock.acquire()
-        for ch_id, value in self.data.items():
-            if challenge_id == value[0].recaptcha_id:
-                break
+        for ch_id, challenge_data in self.data.items():
+            if isinstance(challenge_data[0], ReCAPTCHA):
+                if challenge_id == challenge_data[0].recaptcha_id:
+                    break
         else:
             self.t_lock.release()
             return None
