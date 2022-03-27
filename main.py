@@ -69,6 +69,10 @@ def save_config():
         json.dump(_config, f, indent=4, ensure_ascii=False)
 
 
+def until_date():
+    return int(time.time() + 60)
+
+
 def _update(app):
     @app.on_message(filters.edited)
     async def edited(client, message):
@@ -225,7 +229,7 @@ def _update(app):
         if not bool(message.new_chat_member) or bool(message.old_chat_member) or message.chat.type == "channel":
             return
         # 过滤掉管理员 ban 掉用户产生的加群消息 (Durov 这什么 jb api 赶紧分遗产了)
-        if message.from_user.id != message.new_chat_member.user.id:
+        if message.from_user.id != message.new_chat_member.user.id and not message.new_chat_member.user.is_self:
             return
 
         target = message.new_chat_member.user
@@ -239,10 +243,9 @@ def _update(app):
             current_time = int(time.time())
             last_try = db.get_last_try(target.id)
             since_last_attempt = current_time - last_try
-            if db.get_user_status(target.id) == 1 and since_last_attempt > group_config[
+            if db.get_user_status(target.id) == 1 and since_last_attempt - 60 > group_config[
                 "global_timeout_user_blacklist_remove"]:
-                await client.ban_chat_member(chat_id, target.id)
-                await client.unban_chat_member(chat_id, target.id)
+                await client.ban_chat_member(chat_id, target.id, until_date=until_date())
                 db.update_last_try(current_time, target.id)
                 db.try_count_plus_one(target.id)
                 try_count = int(db.get_try_count(target.id))
@@ -571,8 +574,7 @@ def _update(app):
                 if group_config["challenge_timeout_action"] == "ban":
                     await client.ban_chat_member(chat_id, user_id)
                 elif group_config["challenge_timeout_action"] == "kick":
-                    await client.ban_chat_member(chat_id, user_id)
-                    await client.unban_chat_member(chat_id, user_id)
+                    await client.ban_chat_member(chat_id, user_id, until_date=until_date())
                 elif group_config["challenge_timeout_action"] == "mute":
                     await client.restrict_chat_member(
                         chat_id,
@@ -626,8 +628,7 @@ def _update(app):
         if group_config["challenge_timeout_action"] == "ban":
             await client.ban_chat_member(chat_id, from_id)
         elif group_config["challenge_timeout_action"] == "kick":
-            await client.ban_chat_member(chat_id, from_id)
-            await client.unban_chat_member(chat_id, from_id)
+            await client.ban_chat_member(chat_id, from_id, until_date=until_date())
         else:
             pass
 
