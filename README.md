@@ -19,7 +19,7 @@ Bot实例: [@FubukiAntiSpamBot](https://t.me/FubukiAntiSpamBot)
 
 Q: 被误加入黑名单了，怎么解除？
 
-A: 当前此 bot 实例只会进行踢出群操作，只需要再次加入你想加入的群，如果被自动踢出，在 30 秒之内再次加入即可进入。
+A: 当前此 bot 实例只会进行踢出群操作，只需要再次加入你想加入的群，如果被自动踢出，在1分钟之后10分钟之内再次加入即可进入。
 ## 原理
 
 本 Bot 通过读取 Telegram API 中返回的入群消息来识别新用户入群，并生成一道随机问题对用户进行验证，非严格模式只要有回答问题就通过；严格模式下回答错误将会被移除或者封禁，这个验证的效果目前无法绕过具有人工操作的广告机器人，但是可以对外语（如阿拉伯语和波斯语）类骚扰用户起到一定的拦截作用。再此基础上增加了全局黑名单功能，只有验证超时的广告机器人会自动加入到[黑名单](https://ca.oracle.db.nimaqu.com/view/phpliteadmin.php?database=.%2Fdb%2Fdata.sqlite&table=user&fulltexts=0&numRows=30&action=row_view)，之后在任意有此 bot 的群组加群将会被自动踢出，对误封禁的影响造成最低。
