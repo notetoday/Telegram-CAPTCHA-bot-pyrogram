@@ -69,8 +69,15 @@ def save_config():
         json.dump(_config, f, indent=4, ensure_ascii=False)
 
 
-def until_date():
-    return int(time.time() + 60)
+def get_group_config(chat_id):
+    try:
+        int(chat_id)
+    except ValueError:
+        return None
+    db_config = db.get_group_config(chat_id, 'all')
+    file_config = _config.get(chat_id, _config["*"])
+    final_config = {**file_config, **db_config}
+    return final_config
 
 
 def _update(app):
@@ -102,6 +109,11 @@ def _update(app):
     @app.on_message(filters.command("ping") & filters.private)
     async def ping_command(client: Client, message: Message):
         await message.reply("poi~")
+
+    @app.on_message(filters.command("test"))
+    async def test_command(client: Client, message: Message):
+        new_config = get_group_config(message.chat.id)
+        print(new_config)
 
     @app.on_message(filters.command("start") & filters.private)
     async def start_command(client: Client, message: Message):
@@ -189,7 +201,7 @@ def _update(app):
             await message.reply("请从个人账号发送指令。")
             return
         chat_id = message.chat.id
-        group_config = _config.get(str(chat_id), _config["*"])
+        group_config = get_group_config(chat_id)
         user_id = message.from_user.id
         admins = await client.get_chat_members(chat_id, filter="administrators")
         help_message = "使用方法:\n" \
@@ -233,19 +245,19 @@ def _update(app):
             return
 
         target = message.new_chat_member.user
-        group_config = _config.get(str(message.chat.id), _config["*"])
+        group_config = get_group_config(message.chat.id)
         chat_id = message.chat.id
         user_id = target.id
 
         # 黑名单部分----------------------------------------------------------------------------------------------------
-
-        if group_config["global_timeout_user_kick"]:
+        if group_config["enable_global_blacklist"]:
             current_time = int(time.time())
             last_try = db.get_last_try(target.id)
             since_last_attempt = current_time - last_try
             if db.get_user_status(target.id) == 1 and since_last_attempt - 60 > group_config[
                 "global_timeout_user_blacklist_remove"]:
-                await client.ban_chat_member(chat_id, target.id, until_date=until_date())
+                await client.ban_chat_member(chat_id, target.id)
+                await client.unban_chat_member(chat_id, target.id)
                 db.update_last_try(current_time, target.id)
                 db.try_count_plus_one(target.id)
                 try_count = int(db.get_try_count(target.id))
@@ -309,7 +321,7 @@ def _update(app):
             return
         # reCAPTCHA 验证 ----------------------------------------------------------------------------------------------
 
-        if db.get_group_config(chat_id, 'challenge_type') == 'reCAPTCHA':
+        if group_config['challenge_type'] == 'reCAPTCHA':
             challenge = ReCAPTCHA()
             timeout = group_config["challenge_timeout"]
             reply_message = await client.send_message(
@@ -353,7 +365,7 @@ def _update(app):
         user_username = callback_query.from_user.username
         user_first_name = callback_query.from_user.first_name
         user_last_name = callback_query.from_user.last_name
-        group_config = _config.get(str(chat_id), _config["*"])
+        group_config = get_group_config(chat_id)
 
         # 获取验证信息-----------------------------------------------------------------------------------------------
 
@@ -459,7 +471,7 @@ def _update(app):
         user_username = callback_query.from_user.username
         user_first_name = callback_query.from_user.first_name
         user_last_name = callback_query.from_user.last_name
-        group_config = _config.get(str(chat_id), _config["*"])
+        group_config = get_group_config(chat_id)
 
         # 获取验证信息-----------------------------------------------------------------------------------------------
 
@@ -509,7 +521,6 @@ def _update(app):
                     msg_id,
                     group_config["msg_challenge_passed"],
                     reply_markup=None)
-                _me: User = await client.get_me()
             except MessageNotModified as e:
                 await client.send_message(int(_channel),
                                           'Bot 运行时发生异常: `' + str(e) + "`")
@@ -526,18 +537,17 @@ def _update(app):
             except Exception as e:
                 logging.error(str(e))
         else:
-            if not group_config["use_strict_mode"]:
+            try:
                 await client.edit_message_text(
                     chat_id,
                     msg_id,
-                    group_config["msg_challenge_mercy_passed"],
+                    group_config["msg_challenge_failed"],
                     reply_markup=None,
                 )
-                _me: User = await client.get_me()
                 try:
                     await client.send_message(
                         int(_channel),
-                        _config["msg_passed_mercy"].format(
+                        _config["msg_failed_answer"].format(
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
@@ -546,49 +556,21 @@ def _update(app):
                     )
                 except Exception as e:
                     logging.error(str(e))
+            except ChatAdminRequired:
+                return
+
+            if group_config["challenge_failed_action"] == "ban":
+                await client.ban_chat_member(chat_id, user_id)
             else:
-                try:
-                    await client.edit_message_text(
-                        chat_id,
-                        msg_id,
-                        group_config["msg_challenge_failed"],
-                        reply_markup=None,
-                    )
-                    # await client.restrict_chat_member(chat_id, target)
-                    _me: User = await client.get_me()
-                    try:
-                        await client.send_message(
-                            int(_channel),
-                            _config["msg_failed_answer"].format(
-                                targetuserid=str(target_id),
-                                groupid=str(chat_id),
-                                grouptitle=str(chat_title),
-                            ),
-                            parse_mode="Markdown",
-                        )
-                    except Exception as e:
-                        logging.error(str(e))
-                except ChatAdminRequired:
-                    return
+                # kick
+                await client.ban_chat_member(chat_id, user_id)
+                await client.unban_chat_member(chat_id, user_id)
 
-                if group_config["challenge_timeout_action"] == "ban":
-                    await client.ban_chat_member(chat_id, user_id)
-                elif group_config["challenge_timeout_action"] == "kick":
-                    await client.ban_chat_member(chat_id, user_id, until_date=until_date())
-                elif group_config["challenge_timeout_action"] == "mute":
-                    await client.restrict_chat_member(
-                        chat_id,
-                        user_id,
-                        permissions=ChatPermissions(can_send_messages=False))
-
-                else:
-                    pass
-
-                if group_config["delete_failed_challenge"]:
-                    Timer(
-                        client.delete_messages(chat_id, msg_id),
-                        group_config["delete_failed_challenge_interval"],
-                    )
+            if group_config["delete_failed_challenge"]:
+                Timer(
+                    client.delete_messages(chat_id, msg_id),
+                    group_config["delete_failed_challenge_interval"],
+                )
         if group_config["delete_passed_challenge"]:
             Timer(
                 client.delete_messages(chat_id, msg_id),
@@ -602,8 +584,7 @@ def _update(app):
         user_username = message.from_user.username
         user_first_name = message.from_user.first_name
         user_last_name = message.from_user.last_name
-        _me: User = await client.get_me()
-        group_config = _config.get(str(chat_id), _config["*"])
+        group_config = get_group_config(chat_id)
         _current_challenges.delete("{chat}|{msg}".format(chat=chat_id,
                                                          msg=reply_id))
 
@@ -628,7 +609,8 @@ def _update(app):
         if group_config["challenge_timeout_action"] == "ban":
             await client.ban_chat_member(chat_id, from_id)
         elif group_config["challenge_timeout_action"] == "kick":
-            await client.ban_chat_member(chat_id, from_id, until_date=until_date())
+            await client.ban_chat_member(chat_id, from_id)
+            await client.unban_chat_member(chat_id, from_id)
         else:
             pass
 
@@ -638,7 +620,7 @@ def _update(app):
                 group_config["delete_failed_challenge_interval"],
             )
 
-        if group_config["global_timeout_user_kick"]:
+        if group_config["enable_global_blacklist"]:
             current_time = int(time.time())
             db.new_blacklist(current_time, from_id)
 

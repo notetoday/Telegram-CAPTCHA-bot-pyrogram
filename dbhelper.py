@@ -179,7 +179,14 @@ class DBHelper:
             elif field == 'enable_third_party_blacklist':
                 return result[6]
             elif field == 'all':
-                return result
+                group_config = {'challenge_failed_action': result[1], 'challenge_timeout_action': result[2],
+                                'challenge_timeout': result[3], 'challenge_type': result[4],
+                                'enable_global_blacklist': result[5], 'enable_third_party_blacklist': result[6]}
+                # remove None value
+                null_key = [i for i in group_config if group_config[i] is None]
+                for key in null_key:
+                    group_config.pop(key)
+                return group_config
             else:
                 return None
         except sqlite3.Error as e:
@@ -207,7 +214,7 @@ class DBHelper:
                 return False
             stmt = "UPDATE group_config SET challenge_failed_action = (?) WHERE group_id = (?)"
         elif key == 'challenge_timeout_action':
-            if value != 'ban' and value != 'kick':
+            if value != 'ban' and value != 'kick' and value != 'mute':
                 return False
             stmt = "UPDATE group_config SET challenge_timeout_action = (?) WHERE group_id = (?)"
         elif key == 'challenge_timeout':
