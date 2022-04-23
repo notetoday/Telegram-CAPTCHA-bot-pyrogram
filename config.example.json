@@ -33,7 +33,6 @@
     "delete_passed_challenge_interval": 15,
     "delete_failed_challenge": true,
     "delete_failed_challenge_interval": 15,
-    "use_strict_mode": true,
     "enable_third_party_blacklist": false,
     "enable_global_blacklist": true,
     "global_timeout_user_blacklist_remove": 600

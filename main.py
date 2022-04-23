@@ -74,10 +74,13 @@ def get_group_config(chat_id):
         int(chat_id)
     except ValueError:
         return None
-    db_config = db.get_group_config(chat_id, 'all')
     file_config = _config.get(chat_id, _config["*"])
-    final_config = {**file_config, **db_config}
-    return final_config
+    db_config = db.get_group_config(chat_id, 'all')
+    if db_config is None:
+        return file_config
+    else:
+        final_config = {**file_config, **db_config}
+        return final_config
 
 
 def _update(app):
