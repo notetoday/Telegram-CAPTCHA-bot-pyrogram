@@ -463,6 +463,35 @@ def _update(app):
             await client.answer_callback_query(query_id)
             return
 
+    @app.on_message(filters.group or filters.service)
+    # delete service message and message send from pending validation user
+    async def delete_service_message(client: Client, message: Message):
+        if message.service:
+            if message.service == "new_chat_members" or message.service == "left_chat_member":
+                await message.delete()
+                return
+            else:
+                return
+        if not _current_challenges.data:
+            # 如果当前没有验证任务，就不用判断了
+            return
+        if not message.from_user:
+            # 频道发言不判断
+            return
+        chat_id, user = message.chat.id, message.from_user
+        if _current_challenges.is_duplicate(user.id, chat_id):
+            await message.delete()
+            await client.send_message(chat_id=_channel,
+                                      text=_config["msg_message_deleted"].format(
+                                          targetuserid=str(user.id),
+                                          messageid=str(message.message_id),
+                                          groupid=str(chat_id),
+                                          grouptitle=str(message.chat.title),
+                                      ),
+                                      parse_mode="Markdown",
+                                      )
+            return
+
     @app.on_callback_query()
     async def challenge_answer_callback(client: Client, callback_query: CallbackQuery):
         query_data = str(callback_query.data)
