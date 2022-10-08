@@ -1,5 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: UTF-8 -*-
+import asyncio
 import json
 import logging
 import threading
@@ -193,7 +194,8 @@ def _update(app):
                     # 因为 db 用的是 executemany ，得传一个 tuple 进去，所以必须得这么写，不知道有没有更好的方法
                     success_count += 1
             db.delete_user(deleted_user)
-            await message.reply("已成功清除{}个已经删号的用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
+            await message.reply(
+                "已成功清除{}个已经删号的用户，共有{}个用户信息获取失败。".format(success_count, failed_count))
         else:
             logging.info("Permission denied, admin user in config is:" + str(_admin_user))
             return
@@ -320,7 +322,8 @@ def _update(app):
             return
         except RPCError:
             await client.send_message(
-                message.chat.id, "当前群组不是超级群组，Bot 无法工作，可能是成员过少。\n请尝试添加更多用户，或者禁言一个用户，让 Telegram 将该群转换为超级群组")
+                message.chat.id,
+                "当前群组不是超级群组，Bot 无法工作，可能是成员过少。\n请尝试添加更多用户，或者禁言一个用户，让 Telegram 将该群转换为超级群组")
             return
         # reCAPTCHA 验证 ----------------------------------------------------------------------------------------------
 
@@ -478,6 +481,7 @@ def _update(app):
         if not message.from_user:
             # 频道发言不判断
             return
+        await asyncio.sleep(1)  # 延迟一秒再判断
         chat_id, user = message.chat.id, message.from_user
         if _current_challenges.is_duplicate(user.id, chat_id):
             await message.delete()
