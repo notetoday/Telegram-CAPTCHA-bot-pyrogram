@@ -481,7 +481,7 @@ def _update(app):
         if not message.from_user:
             # 频道发言不判断
             return
-        await asyncio.sleep(1)  # 延迟一秒再判断
+        await asyncio.sleep(2)  # 延迟2秒再判断
         chat_id, user = message.chat.id, message.from_user
         if _current_challenges.is_duplicate(user.id, chat_id):
             await message.delete()
