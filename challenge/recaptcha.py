@@ -17,6 +17,9 @@ class ReCAPTCHA:
         self.bot_url = 'https://t.me/' + cf.get("bot", "username") + '?start='
         self.message = None
 
+    def __str__(self):
+        return "recaptcha id: " + self.recaptcha_id
+
     def get_site_key(self):
         return self.site_key
 

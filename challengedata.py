@@ -25,7 +25,7 @@ class ChallengeData:
             output.append("ChallengeCount: " + str(count))
             for ch_id, challenge_data in self.data.items():
                 output.append("验证 ID：{}".format(ch_id))
-                output.append("验证数据：{}".format(challenge_data) + "\n")
+                output.append("验证数据：{}".format(str(challenge_data)) + "\n")
         return str(output)
 
     def delete(self, data):

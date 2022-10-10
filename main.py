@@ -120,6 +120,7 @@ def _update(app):
             return
         await asyncio.sleep(2)  # 延迟2秒再判断
         chat_id, user = message.chat.id, message.from_user
+        logging.info(f"Chat: {chat_id} User: {user.id} Message: {message.text} Current Challenges: {_current_challenges}")  # for debug
         if _current_challenges.is_duplicate(user.id, chat_id):
             await message.delete()
             await client.send_message(chat_id=_channel,

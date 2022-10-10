@@ -10,6 +10,9 @@ class Timer:
         self.timeout = timeout
         self.task = loop.create_task(self.wait())
 
+    def __str__(self):
+        return "timeout: " + str(self.timeout)
+
     async def wait(self):
         await asyncio.sleep(self.timeout)
         logging.info("Successfully executed a timer schedule.")
