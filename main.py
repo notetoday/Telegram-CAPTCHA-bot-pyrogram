@@ -112,13 +112,13 @@ def _update(app):
                 return
             else:
                 return
-        if not _current_challenges.data:
-            # 如果当前没有验证任务，就不用判断了
-            return
         if not message.from_user:
             # 频道发言不判断
             return
-        await asyncio.sleep(2)  # 延迟2秒再判断
+        await asyncio.sleep(1)  # 延迟2秒再判断
+        if not _current_challenges.data:
+            # 如果当前没有验证任务，就不用判断了
+            return
         chat_id, user = message.chat.id, message.from_user
         logging.info(f"Chat: {chat_id} User: {user.id} Message: {message.text} Current Challenges: {_current_challenges}")  # for debug
         if _current_challenges.is_duplicate(user.id, chat_id):
