@@ -18,5 +18,6 @@ class Timer:
     def stop(self):
         try:
             self.task.cancel()
+            self.callback.close()
         except asyncio.CancelledError:
             pass
