@@ -363,9 +363,8 @@ def _update(app):
             timeout = group_config["challenge_timeout"]
             reply_message = await client.send_message(
                 message.chat.id,
-                group_config["msg_challenge_recaptcha"].format(target=target.first_name,
-                                                               target_id=target.id,
-                                                               timeout=timeout, ),
+                group_config["msg_challenge_recaptcha"].format(target_id=target.id,
+                                                               timeout=timeout),
                 reply_markup=InlineKeyboardMarkup(
                     challenge.generate_button(group_config, chat_id)),
             )
@@ -375,8 +374,7 @@ def _update(app):
             timeout = group_config["challenge_timeout"]
             reply_message = await client.send_message(
                 message.chat.id,
-                group_config["msg_challenge_math"].format(target=target.first_name,
-                                                          target_id=target.id,
+                group_config["msg_challenge_math"].format(target_id=target.id,
                                                           timeout=timeout,
                                                           challenge=challenge.qus()),
                 reply_markup=InlineKeyboardMarkup(
@@ -480,6 +478,10 @@ def _update(app):
                     msg_id,
                     group_config["msg_refused"].format(user=user_first_name),
                     reply_markup=None,
+                )
+                Timer(
+                    client.delete_messages(chat_id, msg_id),
+                    group_config["delete_failed_challenge_interval"]
                 )
                 _me: User = await client.get_me()
                 try:
