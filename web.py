@@ -8,7 +8,7 @@ from pyrogram import Client
 from challengedata import ChallengeData
 
 app = Flask(__name__)
-client = Client('web')
+client = None
 _current_challenges = ChallengeData()
 _config = dict()
 db = DBHelper()
@@ -43,7 +43,7 @@ async def verify():
 
     challenge, target_id, timeout_event = challenge_data
     chat_id = challenge.message.chat.id
-    msg_id = challenge.message.message_id
+    msg_id = challenge.message.id
 
     if chat_id != challenge.message.chat.id:
         flash("未知错误！", "error")
@@ -83,9 +83,7 @@ async def verify():
                         targetuserid=str(target_id),
                         groupid=str(chat_id),
                         grouptitle=str(chat_title),
-                    ),
-                    parse_mode="Markdown",
-                )
+                    ))
             except Exception as e:
                 logging.error(str(e))
 

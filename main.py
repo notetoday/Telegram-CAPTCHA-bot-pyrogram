@@ -10,11 +10,14 @@ from configparser import ConfigParser
 
 from pyrogram import (Client, filters)
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
+from pyrogram.enums.chat_members_filter import ChatMembersFilter
+from pyrogram.enums.message_service_type import MessageServiceType
 from pyrogram.types import (InlineKeyboardMarkup, User, Message, ChatPermissions, CallbackQuery,
                             ChatMemberUpdated)
 from Timer import Timer
 from challenge.math import Math
 from challenge.recaptcha import ReCAPTCHA
+from challenge.autokickcache import AutoKickCache
 from dbhelper import DBHelper
 from challengedata import ChallengeData
 from waitress import serve
@@ -85,12 +88,6 @@ def get_group_config(chat_id):
 
 
 def _update(app):
-    @app.on_message(filters.edited)
-    async def edited(client, message):
-        pass
-
-    # avoid event handler called twice or more by edit
-
     @app.on_message(filters.command("reload") & filters.private)
     async def reload_cfg(client: Client, message: Message):
         _me: User = await client.get_me()
@@ -103,36 +100,6 @@ def _update(app):
             logging.info("Permission denied, admin user in config is:" + str(_admin_user))
             pass
 
-    @app.on_message(filters.group or filters.service)
-    # delete service message and message send from pending validation user
-    async def delete_service_message(client: Client, message: Message):
-        if message.service:
-            if message.service == "new_chat_members" or message.service == "left_chat_member":
-                await message.delete()
-                return
-            else:
-                return
-        if not message.from_user:
-            # 频道发言不判断
-            return
-        await asyncio.sleep(1)  # 延迟2秒再判断
-        if not _current_challenges.data:
-            # 如果当前没有验证任务，就不用判断了
-            return
-        chat_id, user = message.chat.id, message.from_user
-        if _current_challenges.is_duplicate(user.id, chat_id):
-            await message.delete()
-            await client.send_message(chat_id=_channel,
-                                      text=_config["msg_message_deleted"].format(
-                                          targetuserid=str(user.id),
-                                          messageid=str(message.message_id),
-                                          groupid=str(chat_id),
-                                          grouptitle=str(message.chat.title),
-                                      ),
-                                      parse_mode="Markdown",
-                                      )
-            return
-
     @app.on_message(filters.command("help") & filters.group)
     async def helping_cmd(client: Client, message: Message):
         _me: User = await client.get_me()
@@ -143,11 +110,6 @@ def _update(app):
     @app.on_message(filters.command("ping") & filters.private)
     async def ping_command(client: Client, message: Message):
         await message.reply("poi~")
-
-    @app.on_message(filters.command("test"))
-    async def test_command(client: Client, message: Message):
-        new_config = get_group_config(message.chat.id)
-        print(new_config)
 
     @app.on_message(filters.command("start") & filters.private)
     async def start_command(client: Client, message: Message):
@@ -190,16 +152,14 @@ def _update(app):
             except RPCError:
                 await message.reply("指令出错了！可能是bot不在参数所在群里。")
             else:
-                await message.reply("已离开群组: `" + chat_id + "`",
-                                    parse_mode="Markdown")
+                await message.reply("已离开群组: `" + chat_id + "`", )
                 _me: User = await client.get_me()
                 try:
                     await client.send_message(
                         int(_channel),
                         _config["msg_leave_group"].format(
                             groupid=chat_id,
-                        ),
-                        parse_mode="Markdown")
+                        ))
                 except Exception as e:
                     logging.error(str(e))
         else:
@@ -238,7 +198,9 @@ def _update(app):
         chat_id = message.chat.id
         group_config = get_group_config(chat_id)
         user_id = message.from_user.id
-        admins = await client.get_chat_members(chat_id, filter="administrators")
+        admins = []
+        async for m in client.get_chat_members(chat_id, filter=ChatMembersFilter.ADMINISTRATORS):
+            admins.append(m)
         help_message = "使用方法:\n" \
                        "/faset [配置项] [值]\n\n" \
                        "配置项:\n" \
@@ -253,7 +215,7 @@ def _update(app):
                        "PS: 当前仅有 challenge_type 有效，其他配置项开发中。"
         if not any([
             admin.user.id == user_id and
-            (admin.status == "creator" or admin.can_restrict_members)
+            (admin.status == "creator" or admin.privileges.can_restrict_members)
             for admin in admins
         ]):
             await message.reply(group_config["msg_permission_denied"])
@@ -269,6 +231,35 @@ def _update(app):
             await message.reply("配置项设置成功")
         else:
             await message.reply("配置项设置失败, 请输入 /fasset 查看帮助")
+
+    @app.on_message(filters.group | filters.service)
+    # delete service message and message send from pending validation user
+    async def delete_service_message(client: Client, message: Message):
+        service_message_need_delete = [MessageServiceType.NEW_CHAT_MEMBERS, MessageServiceType.LEFT_CHAT_MEMBERS]
+        if message.service:
+            if message.service in service_message_need_delete:
+                await message.delete()
+                return
+            else:
+                return
+        if not message.from_user:
+            # 频道发言不判断
+            return
+        await asyncio.sleep(1)  # 延迟2秒再判断
+        if not _current_challenges.data:
+            # 如果当前没有验证任务，就不用判断了
+            return
+        chat_id, user = message.chat.id, message.from_user
+        if _current_challenges.is_duplicate(user.id, chat_id):
+            await message.delete()
+            await client.send_message(chat_id=_channel,
+                                      text=_config["msg_message_deleted"].format(
+                                          targetuserid=str(user.id),
+                                          messageid=str(message.id),
+                                          groupid=str(chat_id),
+                                          grouptitle=str(message.chat.title),
+                                      ))
+            return
 
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
@@ -289,8 +280,18 @@ def _update(app):
             current_time = int(time.time())
             last_try = db.get_last_try(target.id)
             since_last_attempt = current_time - last_try
-            if db.get_user_status(target.id) == 1 and since_last_attempt - 60 > group_config[
+            if db.get_user_status(target.id) == 1 and since_last_attempt > group_config[
                 "global_timeout_user_blacklist_remove"]:
+
+                # 存进 current_challenge 里面一小会，以供消息删除使用
+                challenge = AutoKickCache()
+                challenge_id = "{chat}|{msg}".format(chat=message.chat.id, msg=None)
+                timeout_event = Timer(
+                    challenge_timeout(client, message, None),
+                    timeout=5,
+                )
+                _current_challenges[challenge_id] = (challenge, message.from_user.id, timeout_event)
+
                 await client.ban_chat_member(chat_id, target.id)
                 await client.unban_chat_member(chat_id, target.id)
                 db.update_last_try(current_time, target.id)
@@ -334,9 +335,8 @@ def _update(app):
                             int(_channel),
                             _config["msg_into_group"].format(
                                 groupid=str(message.chat.id),
-                                grouptitle=str(message.chat.title),
-                            ),
-                            parse_mode="Markdown",
+                                grouptitle=str(message.chat.title)
+                            )
                         )
                     except Exception as e:
                         logging.error(str(e))
@@ -381,9 +381,9 @@ def _update(app):
             )
 
         # 开始计时 -----------------------------------------------------------------------------------------------------
-        challenge_id = "{chat}|{msg}".format(chat=message.chat.id, msg=reply_message.message_id)
+        challenge_id = "{chat}|{msg}".format(chat=message.chat.id, msg=reply_message.id)
         timeout_event = Timer(
-            challenge_timeout(client, message, reply_message.message_id),
+            challenge_timeout(client, message, reply_message.id),
             timeout=group_config["challenge_timeout"],
         )
         _current_challenges[challenge_id] = (challenge, message.from_user.id, timeout_event)
@@ -394,7 +394,7 @@ def _update(app):
         query_id = callback_query.id
         chat_id = callback_query.message.chat.id
         user_id = callback_query.from_user.id
-        msg_id = callback_query.message.message_id
+        msg_id = callback_query.message.id
         chat_title = callback_query.message.chat.title
         user_username = callback_query.from_user.username
         user_first_name = callback_query.from_user.first_name
@@ -415,11 +415,12 @@ def _update(app):
         # 响应管理员操作------------------------------------------------------------------------------------------------
 
         if query_data in ["+", "-"]:
-            admins = await client.get_chat_members(chat_id,
-                                                   filter="administrators")
+            admins = []
+            async for m in client.get_chat_members(chat_id, filter=ChatMembersFilter.ADMINISTRATORS):
+                admins.append(m)
             if not any([
                 admin.user.id == user_id and
-                (admin.status == "creator" or admin.can_restrict_members)
+                (admin.status == "creator" or admin.privileges.can_restrict_members)
                 for admin in admins
             ]):
                 await client.answer_callback_query(
@@ -460,8 +461,7 @@ def _update(app):
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
-                        ),
-                        parse_mode="Markdown",
+                        )
                     )
                 except Exception as e:
                     logging.error(str(e))
@@ -490,8 +490,7 @@ def _update(app):
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
-                        ),
-                        parse_mode="Markdown",
+                        )
                     )
                 except Exception as e:
                     logging.error(str(e))
@@ -504,7 +503,7 @@ def _update(app):
         query_id = callback_query.id
         chat_id = callback_query.message.chat.id
         user_id = callback_query.from_user.id
-        msg_id = callback_query.message.message_id
+        msg_id = callback_query.message.id
         chat_title = callback_query.message.chat.title
         user_username = callback_query.from_user.username
         user_first_name = callback_query.from_user.first_name
@@ -569,8 +568,7 @@ def _update(app):
                         targetuserid=str(target_id),
                         groupid=str(chat_id),
                         grouptitle=str(chat_title),
-                    ),
-                    parse_mode="Markdown",
+                    )
                 )
             except Exception as e:
                 logging.error(str(e))
@@ -589,8 +587,7 @@ def _update(app):
                             targetuserid=str(target_id),
                             groupid=str(chat_id),
                             grouptitle=str(chat_title),
-                        ),
-                        parse_mode="Markdown",
+                        )
                     )
                 except Exception as e:
                     logging.error(str(e))
@@ -625,6 +622,9 @@ def _update(app):
         group_config = get_group_config(chat_id)
         _current_challenges.delete("{chat}|{msg}".format(chat=chat_id,
                                                          msg=reply_id))
+        if reply_id is None:
+            # 删除黑名单缓存
+            return
 
         # TODO try catch
         await client.edit_message_text(
@@ -682,7 +682,6 @@ def _main():
                       api_id=_api_id,
                       api_hash=_api_hash)
     try:
-
         # start web
         tt = threading.Thread(
             target=start_web, name="WebThread", args=(_app,))

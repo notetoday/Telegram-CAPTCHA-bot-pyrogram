@@ -30,7 +30,7 @@ Telegram Bot API 使用了基于 MTProto 框架的 pyrogram，多线程使用了
 
 此仓库仅为遵守 AGPL 协议进行代码展示，并未对用户部署使用进行优化，普通用户建议直接使用[原始项目](https://github.com/Tooruchan/Telegram-CAPTCHA-bot-pyrogram) 如果你仍想使用此 Bot，请参照下面说明进行部署。
 
-**由于 Bot 使用了 Python 3.6 的 [变量类型标注](https://docs.python.org/zh-cn/3/library/typing.html) 这一特性，在低于 Python 3.6 的版本上会出现 SyntaxError，因此源码只能在 Python 3.6+ 上运行!**  
+Python 要求： **最低 python 版本 3.9 ，建议 python 版本: 3.11**
 1. 请先向 [@BotFather](https://t.me/botfather) 申请一个 Bot API Token  
 > 你申请到的机器人会在你的 Telegram 账号所在数据中心上运行（即申请机器人的账号A位于 DC 5 (新加坡)，则 A 申请到的机器人也将会在 DC5 上运行)
 2. 在 [Obtaining Telegram API ID](https://core.telegram.org/api/obtaining_api_id) 申请 API ID 与 API Hash
