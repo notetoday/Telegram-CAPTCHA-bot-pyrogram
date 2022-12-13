@@ -12,6 +12,7 @@ from pyrogram import (Client, filters)
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
 from pyrogram.enums.chat_members_filter import ChatMembersFilter
 from pyrogram.enums.message_service_type import MessageServiceType
+from pyrogram.enums.chat_type import ChatType
 from pyrogram.types import (InlineKeyboardMarkup, User, Message, ChatPermissions, CallbackQuery,
                             ChatMemberUpdated)
 from Timer import Timer
@@ -264,7 +265,7 @@ def _update(app):
     @app.on_chat_member_updated()
     async def challenge_user(client: Client, message: ChatMemberUpdated):
         # 过滤掉非用户加群消息和频道新用户消息，同时确保 form_user 这个参数不是空的
-        if not bool(message.new_chat_member) or bool(message.old_chat_member) or message.chat.type == "channel":
+        if not bool(message.new_chat_member) or bool(message.old_chat_member) or message.chat.type == ChatType.CHANNEL:
             return
         # 过滤掉管理员 ban 掉用户产生的加群消息 (Durov 这什么 jb api 赶紧分遗产了)
         if message.from_user.id != message.new_chat_member.user.id and not message.new_chat_member.user.is_self:
