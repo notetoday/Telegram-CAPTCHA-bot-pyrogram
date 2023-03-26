@@ -212,8 +212,7 @@ def _update(app):
                        "`enable_global_blacklist`: 是否启用全局黑名单，值为 `1` 启用或 `0` 禁用\n" \
                        "`enable_third_party_blacklist`: 是否启用第三方黑名单，值为 `true` 或 `false`\n\n" \
                        "例如: \n" \
-                       "`/faset challenge_type reCAPTCHA`\n\n" \
-                       "PS: 当前仅有 challenge_type 有效，其他配置项开发中。"
+                       "`/faset challenge_type reCAPTCHA`"
         if not any([
             admin.user.id == user_id and
             (admin.status == "creator" or admin.privileges.can_restrict_members)
@@ -320,10 +319,13 @@ def _update(app):
 
         # 入群验证部分--------------------------------------------------------------------------------------------------
         # 这里做一个判断让当出 bug 的时候不会重复弹出一车验证消息
-        if _current_challenges.is_duplicate(user_id, chat_id):
-            logging.error('重复的验证，用户id：{}, 群组 id {}'.format(user_id, chat_id))
-            return
-
+        ch_id, ch_data = _current_challenges.get_by_user_and_chat_id(user_id, chat_id)
+        if ch_data:
+            challenge, target_id, timeout_event = ch_data
+            # 如果某个 bug 导致了重复的验证，就直接返回, 除非这个验证是 AutoKickCache
+            if not isinstance(challenge, AutoKickCache):
+                logging.error(f"重复的验证，用户id：{user_id}，群组id：{chat_id}")
+                return
         # 禁言用户 ----------------------------------------------------------------------------------------------------
         if message.from_user.id != target.id:
             if target.is_self:
