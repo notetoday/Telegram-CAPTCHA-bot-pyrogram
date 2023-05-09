@@ -26,14 +26,14 @@ class ReCAPTCHA:
     def get_secret_key(self):
         return self.secret_key
 
-    def verify(self, captcha_response):
+    def verify(self, captcha_response, user_ip: str):
         """ Validating recaptcha response from google server
             Returns True captcha test passed for submitted form else returns False.
             https://techmonger.github.io/5/python-flask-recaptcha/
         """
         secret = self.secret_key
-        payload = {'response': captcha_response, 'secret': secret}
-        response = requests.post("https://www.google.com/recaptcha/api/siteverify", payload)
+        payload = {'response': captcha_response, 'secret': secret, 'remoteip': user_ip}
+        response = requests.post("https://challenges.cloudflare.com/turnstile/v0/siteverify", payload)
         response_text = json.loads(response.text)
         return response_text['success']
 

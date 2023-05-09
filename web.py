@@ -52,8 +52,10 @@ async def verify():
     chat_title = challenge.message.chat.title
 
     if request.method == "POST":
+        # 获取用户 IP, 用于 recaptcha 验证
+        user_ip = request.headers.get('CF-Connecting-IP', request.remote_addr)
         captcha_response = request.form['g-recaptcha-response']
-        if not challenge.verify(captcha_response):
+        if not challenge.verify(captcha_response, user_ip):
             flash('验证状态异常，请再试一次！', 'error')
             return render_template('recaptcha.html', sitekey=challenge.site_key)
         else:
