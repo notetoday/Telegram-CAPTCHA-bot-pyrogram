@@ -8,13 +8,13 @@ import time
 import datetime
 from configparser import ConfigParser
 
-from pyrogram import (Client, filters)
+from pyrogram import Client, filters
 from pyrogram.errors import ChatAdminRequired, ChannelPrivate, MessageNotModified, RPCError, BadRequest
 from pyrogram.enums.chat_members_filter import ChatMembersFilter
 from pyrogram.enums.message_service_type import MessageServiceType
 from pyrogram.enums.chat_type import ChatType
 from pyrogram.types import (InlineKeyboardMarkup, User, Message, ChatPermissions, CallbackQuery,
-                            ChatMemberUpdated)
+                            ChatMemberUpdated, ChatMember)
 from Timer import Timer
 from challenge.math import Math
 from challenge.recaptcha import ReCAPTCHA
@@ -135,12 +135,40 @@ def _update(app):
         else:
             challenge, target_id, timeout_event = challenge_data
 
-        await message.reply("点击下方按钮完成验证，您需要一个浏览器来完成它\n\n"
-                            "隐私提醒: \n"
-                            "当您打开验证页面时，我们和 Cloudflare 将不可避免的获得您访问使用的 IP 地址，即使我们并不记录它\n"
-                            "Google 将获得您的信息， 详见 [Privacy Policy](https://policies.google.com/privacy)\n"
-                            "如果您不想被记录，请返回群组，在超时时间内找到并联系群组管理员，您会在超时时间后被自动移出群组",
+        await message.reply("点击下方按钮完成验证，您需要使用浏览器来完成\n\n",
                             reply_markup=InlineKeyboardMarkup(challenge.generate_auth_button()))
+
+    @app.on_message(filters.command("admin", prefixes="@") & filters.group)
+    async def call_admin(client: Client, message: Message):
+        def is_name_printable(s):
+            for c in s:
+                if not c.isprintable():
+                    return False
+            return True
+
+
+        administrators: list[ChatMember] = []
+        me: User = await client.get_me()
+        async for m in app.get_chat_members(message.chat.id, filter=ChatMembersFilter.ADMINISTRATORS):
+            administrators.append(m)
+        text = ""
+        for admin in administrators:
+            if admin.user.id == me.id:
+                continue
+            # 检查是否有删除消息的权限
+            if not admin.privileges.can_restrict_members or not admin.privileges.can_delete_messages:
+                continue
+            if admin.user.is_bot:
+                continue
+            if is_name_printable(admin.user.first_name):
+                text += f"{admin.user.mention} "
+            else:
+                text += f"{admin.user.mention('admin')} "
+        if text == "":
+            await message.reply("没有找到可用的管理员")
+            return
+        msg = await message.reply(text)
+        Timer(msg.delete(), 10)
 
     @app.on_message(filters.command("leave") & filters.private)
     async def leave_command(client: Client, message: Message):
@@ -178,6 +206,7 @@ def _update(app):
                 try:
                     user = await client.get_users(x)
                 except BadRequest:
+                    deleted_user.append((x,))
                     failed_count += 1
                     continue
                 if user.is_deleted:
@@ -210,7 +239,6 @@ def _update(app):
                        "`challenge_timeout`: 验证超时时间，单位为秒\n" \
                        "`challenge_type`: 验证方法，当前可用为数学题 `math` 或 `reCAPTCHA` 谷歌验证码\n" \
                        "`enable_global_blacklist`: 是否启用全局黑名单，值为 `1` 启用或 `0` 禁用\n" \
-                       "`enable_third_party_blacklist`: 是否启用第三方黑名单，值为 `true` 或 `false`\n\n" \
                        "例如: \n" \
                        "`/faset challenge_type reCAPTCHA`"
         if not any([
@@ -218,7 +246,9 @@ def _update(app):
             (admin.status == "creator" or admin.privileges.can_restrict_members)
             for admin in admins
         ]):
-            await message.reply(group_config["msg_permission_denied"])
+            msg = await message.reply(group_config["msg_permission_denied"])
+            Timer(msg.delete(), 5)
+            Timer(message.delete(), 5)
             return
 
         args = message.text.split(" ", maxsplit=3)
