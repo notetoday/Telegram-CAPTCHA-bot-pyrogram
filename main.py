@@ -140,13 +140,6 @@ def _update(app):
 
     @app.on_message(filters.command("admin", prefixes="@") & filters.group)
     async def call_admin(client: Client, message: Message):
-        def is_name_printable(s):
-            for c in s:
-                if not c.isprintable():
-                    return False
-            return True
-
-
         administrators: list[ChatMember] = []
         me: User = await client.get_me()
         async for m in app.get_chat_members(message.chat.id, filter=ChatMembersFilter.ADMINISTRATORS):
@@ -160,7 +153,7 @@ def _update(app):
                 continue
             if admin.user.is_bot:
                 continue
-            if is_name_printable(admin.user.first_name):
+            if admin.user.first_name.isprintable():
                 text += f"{admin.user.mention} "
             else:
                 text += f"{admin.user.mention('admin')} "
