@@ -153,15 +153,12 @@ def _update(app):
                 continue
             if admin.user.is_bot:
                 continue
-            if admin.user.first_name.isprintable():
-                text += f"{admin.user.mention} "
-            else:
-                text += f"{admin.user.mention('admin')} "
+            text += f"{admin.user.mention('admin')} "
         if text == "":
             await message.reply("没有找到可用的管理员")
             return
         msg = await message.reply(text)
-        Timer(msg.delete(), 10)
+        Timer(msg.delete(), 300)
 
     @app.on_message(filters.command("leave") & filters.private)
     async def leave_command(client: Client, message: Message):
