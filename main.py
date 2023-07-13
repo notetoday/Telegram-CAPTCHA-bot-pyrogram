@@ -22,6 +22,7 @@ from challenge.autokickcache import AutoKickCache
 from dbhelper import DBHelper
 from challengedata import ChallengeData
 from waitress import serve
+from urllib.parse import urlparse, parse_qs
 
 db = DBHelper()
 
@@ -86,6 +87,25 @@ def get_group_config(chat_id):
     else:
         final_config = {**file_config, **db_config}
         return final_config
+
+def extract_ids(url: str) -> (int | str, int):
+    # 解析 URL
+    parsed = urlparse(url)
+    # 提取路径部分
+    path = parsed.path
+
+    if '/c/' in path:
+        # 私有群组链接
+        path_parts = path.split('/')
+        chat_id = int(path_parts[-2])
+        message_id = int(path_parts[-1])
+        # chat_id 需要加上 -100 前缀
+        return str(-100) + str(chat_id), message_id
+    else:
+        # 公共群组链接，chat_id 为用户名，message_id 为最后一部分
+        chat_id = path.split('/')[-2]
+        message_id = int(path.split('/')[-1])
+        return chat_id, message_id
 
 
 def _update(app):
@@ -251,6 +271,36 @@ def _update(app):
             await message.reply("配置项设置成功")
         else:
             await message.reply("配置项设置失败, 请输入 /fasset 查看帮助")
+
+    @app.on_message(filters.private & filters.command("sender"))
+    async def get_message_info(client: Client, message: Message):
+        # 从参数给出的链接中获取对应的消息例如：https://t.me/SSUnion/1918564
+        if len(message.command) != 2:
+            await message.reply("使用方法: /msginfo [message link]")
+            return
+        link = message.command[1]
+        if not link.startswith("https://t.me/"):
+            await message.reply("链接格式错误")
+            return
+        try:
+            chat_id, message_id = extract_ids(link)
+            msg = await client.get_messages(chat_id, message_id)
+        except BadRequest as e:
+            await message.reply("Bot 不在该群组中")
+            return
+        except IndexError:
+            await message.reply("链接格式错误")
+            return
+        except RPCError as e:
+            logging.exception(e)
+            await message.reply("获取消息失败: " + str(e))
+            return
+        if msg.from_user is None:
+            await message.reply("未找到消息发送者")
+            return
+        else:
+            fuser = msg.from_user
+            await message.reply(f"{fuser.mention(str(fuser.id))}\n")
 
     @app.on_message(filters.group | filters.service)
     # delete service message and message send from pending validation user
