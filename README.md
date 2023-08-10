@@ -43,6 +43,7 @@ cd Telegram-CAPTCHA-bot-pyrogram
 python3 -m venv venv
 venv/bin/pip install wheel
 venv/bin/pip install -r requirements.txt
+venv/bin/pip install "Flask[async]"
 ```
 
 4. 将项目文件夹中 auth.ini 里的 token 字段（与等号间存在一个空格）修改为你在 [@BotFather](https://t.me/botfather) 获取到的 API Token，api_hash 和 api_id 修改为你在步骤2中获得的两串内容，其中 API ID 为数字，而 API Hash 为一组字符，你也可以对 config.json 里的内容酌情修改。
